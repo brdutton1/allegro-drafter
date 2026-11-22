@@ -140,6 +140,60 @@ Work one view at a time, so each approval is easy to check:
 
 Exterior dimensions need wall types with **Function = Exterior**, and door/window families need a **Center (Left/Right)** reference. Claude tells you when either is missing. Tags land on the element center; drag any that collide.
 
+## Set audit (Phase 4)
+
+Ask Claude: **"Audit the set."** It runs `audit_set` and gives you a punch list: pass, warn or fail per check, with element ids. It changes nothing. Ask for fixes and they come back as proposals.
+
+| Check | What fails |
+|---|---|
+| `type-marks` | Type Mark isn't a size code (`466`), or disagrees with the type's Width/Height by more than 1/2" |
+| `operation-codes` | Operation isn't in the office list (`6060 CMST`), a window has none, or two types share a Type Mark |
+| `schedules` | Door/window schedule missing Type Mark, Count, swing, Tempered or Egress, a hidden required field, not sorted by Type Mark first, or not on a sheet |
+| `opening-parameters` | Doors missing Door Swing / Tempered, windows missing Tempered / Egress, or swing left blank |
+| `tags` | A door or window isn't tagged on a placed plan, or an exterior one isn't tagged on a placed elevation. Windows above the plan cut (clerestories, transoms) need the elevation tag only |
+| `wall-legend` | Legend shows a wall type the model doesn't use, or the model uses one the legend doesn't show |
+| `sheets` | Number doesn't fit the office pattern, unfinished name, empty sheet, no sheet index placed |
+| `view-scales` | Placed plan, elevation or section smaller than 1/8". Smaller than 1/4" warns. Site views skip |
+| `text-heights` | A text or dimension type used on sheets is under 1/8" (PPRBD minimum) |
+| `rooms` | Not enclosed, no name, no number, or a dimension stored as the number. Unplaced rooms warn |
+| `door-rooms` | A door with no room on either side (warns) |
+| `view-templates` | A placed view has no template, or one that isn't in the office standards |
+| `egress` | A bedroom has no window marked Egress = Yes, or its sill is over 44" |
+| `tempered` | Glass door not marked Tempered. Windows near doors, in tub/shower rooms, or big and low are flagged to confirm |
+| `references` | Hand-typed `4/F2` style references (warn), or ones that point to a sheet that doesn't exist (fail) |
+| `cover-sheet` | No cover sheet, no sheet index on it, or missing "SCOPE OF WORK" / "DO NOT SCALE" |
+
+### Size codes, swing, tempered, egress
+
+- **Type Mark** is the size code plus operation: `3050 CSMT`, `4040 SLDR`, `6020 FIX`. Swing doors carry the size only: `3080`. The tag and the schedule both read Type Mark, so they can't disagree.
+- **Door swing** goes on the schedule, not the tag. The door schedule sorts by Type Mark, then swing.
+- **Tempered** and **Egress** are instance Yes/No parameters on doors and windows, shown as schedule columns. Add them once as project parameters (Manage > Project Parameters, Doors and Windows, Yes/No, instance).
+
+### Tuning the rules
+
+Every rule has a default. Override any of them in `standards.json` under `manual.audit`:
+
+```json
+"manual": {
+  "audit": {
+    "windowOperations": ["CSMT", "AWN", "DH", "SH", "SLDR", "FIX"],
+    "doorOperations": ["PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH"],
+    "typeMarkToleranceInches": 0.5,
+    "doorScheduleFields": ["Type Mark", "Count", "Door Swing", "Tempered"],
+    "windowScheduleFields": ["Type Mark", "Count", "Tempered", "Egress"],
+    "swingParameter": "Door Swing",
+    "sheetNumberPattern": "^(CS|[A-Z]{1,2}\\d{1,2}(\\.\\d{1,2})?)$",
+    "coverSheetMustContain": ["SCOPE OF WORK", "DO NOT SCALE"],
+    "minTextHeightInches": 0.125,
+    "planCutHeightInches": 48,
+    "wallLegendNames": ["WALL LEGEND", "WALL LEGEND ICF"],
+    "legendExemptWallTypes": ["Truss", "POST TRIM", "water fall"]
+  }
+}
+```
+
+A list you give replaces the default list. It doesn't add to it.
+
 ## Troubleshooting
 
 | Symptom | Fix |

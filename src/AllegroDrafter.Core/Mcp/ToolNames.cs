@@ -12,6 +12,7 @@ public static class ToolNames
     public const string ListSchedules = "list_schedules";
     public const string ListElements = "list_elements";
     public const string ReadLegend = "read_legend";
+    public const string AuditSet = "audit_set";
 
     public const string ProposeSheets = "propose_sheets";
     public const string ProposeSheetSet = "propose_sheet_set";

@@ -36,6 +36,7 @@ Phase 1 (sheet builder) runs in Revit 2026. Phases 2 and 3 (schedules, tags, dim
 | `propose_sheet_set` | New sheets plus the views on them, one batch |
 | `propose_sheets`, `propose_place_views`, `propose_view_templates` | Smaller batches |
 | `list_schedules`, `list_elements`, `read_legend` | Read schedules, doors/windows/rooms with parameters, legend text |
+| `audit_set` | Read-only punch list before issue: size codes, schedules, tags, wall legend, sheets, scales, text height, rooms, templates, egress, tempered, typed references, cover sheet |
 | `propose_schedules` | Door, window, room and finish schedules from office schedules, placed on sheets |
 | `propose_schedule_fields` | Add, remove and position schedule columns (e.g. Mark on the door schedule) |
 | `propose_parameter_values` | Marks, room names/numbers, finishes (finish codes enforced) |

@@ -45,8 +45,23 @@
 - [ ] Keynotes
 - [ ] Angled and curved walls in dimensions
 
-## Phase 4: Plan set QA
-- [ ] Punch list before issue: untagged elements, missing schedules, sheet index vs actual sheets, empty views, broken callouts, notes that contradict the model
+## Phase 4: Plan set QA (audit built, not yet run in Revit)
+Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-sets.md).
+- [x] `audit_set`: read-only punch list, 16 checks, rules in `manual.audit`, logic in Core with tests
+  - size-code Type Marks vs geometry, operation codes, duplicate marks
+  - door/window schedules report from Type Mark with Count, swing, Tempered, Egress
+  - tags on placed plans and elevations, wall legend vs modeled walls
+  - sheet numbers, names, empty sheets, sheet index, cover sheet contents
+  - view scales, 1/8" min text and dimensions, view templates
+  - rooms, doors without rooms, bedroom egress (R310), tempered candidates (R308.4)
+  - hand-typed detail references
+- [ ] First run inside Revit on a copy of a finished job
+- [ ] Fix proposals driven by audit findings: Type Mark corrections (type parameter writes), schedule fields, room cleanup, templates
+- [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area
+- [ ] Dimension strings close to their overall, no gaps
+- [ ] Bearing walls stack between levels
+- [ ] Tempered at stairs and landings (R308.4.6)
+- [ ] Broken live callouts and orphan details
 
 ## Out of scope for now
 - Modeling from sketches or PDFs

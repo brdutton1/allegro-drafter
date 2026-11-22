@@ -59,6 +59,19 @@ internal sealed class RevitToolHandler : IToolHandler
                     var legend = Args.OptionalString(args, "name", "arguments");
                     return await Read((_, doc) => ScheduleReader.ReadLegend(doc, legend));
                 }
+                case ToolNames.AuditSet:
+                {
+                    var only = Args.OptionalStringArray(args, "checks", "arguments");
+                    var profile = _standards.Current;
+                    var settings = profile?.Manual.Audit ?? new Core.Checks.AuditSettings();
+                    var templates = profile?.ViewTemplates.Select(t => t.Name).ToList() ?? new List<string>();
+                    // Reject unknown check names before touching Revit.
+                    if (only is { Count: > 0 }) Core.Checks.SetAuditor.Run(new Core.Checks.SetFacts(), settings, templates, only);
+                    var facts = await _dispatcher.InvokeAsync(app => FactsReader.Read(RequireProject(app), settings));
+                    if (profile is null)
+                        facts.ReadWarnings.Add("No standards profile loaded, so default audit rules were used and view templates weren't checked against the office list.");
+                    return ToolCallResult.Ok(Core.Checks.SetAuditor.Run(facts, settings, templates, only));
+                }
                 case ToolNames.ListRooms:
                 {
                     var level = Args.OptionalString(args, "level", "arguments");

@@ -71,6 +71,9 @@ public sealed class ManualSettings
 
     /// <summary>Room parameters that hold finish codes. Add custom shared parameters here.</summary>
     public List<string> FinishParameters { get; set; } = new() { "Floor Finish", "Base Finish", "Wall Finish", "Ceiling Finish" };
+
+    /// <summary>Rules the audit_set check runs against (size codes, schedule columns, text height, ...).</summary>
+    public Checks.AuditSettings Audit { get; set; } = new();
 }
 
 public sealed record FinishCode(string Code, string Description);

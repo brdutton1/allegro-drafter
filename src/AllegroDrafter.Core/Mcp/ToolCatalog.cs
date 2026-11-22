@@ -38,6 +38,7 @@ public static class ToolCatalog
         9. Never guess door or window marks, room names or finishes the designer hasn't given you a rule for. Ask.
         10. Annotation: tag with propose_tags, dimension plans with propose_dimensions (exterior strings), callouts with propose_callouts, notes with propose_notes. Propose one view or one sheet's worth at a time so the designer can check it.
         11. Coordinates are in feet: model X/Y for plan views, view coordinates for drafting views and legends. Use list_elements / list_rooms to find where things are.
+        12. Before issue, or when asked what's wrong with the set, run audit_set. Report failures first, in plain words. Offer fixes as proposals, never fix silently. A size code is the nominal opening (3050 = 3'-0" W x 5'-0" H). Only use a size code the audit derived from the type's real size, never a guess.
         """;
 
     private const string TitleRationale = """
@@ -118,6 +119,15 @@ public static class ToolCatalog
             """
             { "type": "object", "properties": {
                 "name": { "type": "string", "description": "Exact legend or drafting view name." } },
+              "additionalProperties": false }
+            """, ReadOnly: true),
+
+        new ToolDefinition(ToolNames.AuditSet, "Audit the plan set",
+            "Read-only punch list before issue. Checks size-code Type Marks against door/window sizes, operation codes, door/window schedules (Type Mark, Count, swing, tempered, egress), tags, wall legend vs modeled walls, sheet numbers and index, view scales, text heights (1/8\" min), rooms, view templates, bedroom egress (R310), tempered glazing candidates (R308.4), hand-typed detail references and the cover sheet. Returns pass/warn/fail per check with element ids. Changes nothing. Rules come from get_standards manual.audit.",
+            """
+            { "type": "object", "properties": {
+                "checks": { "type": "array", "items": { "type": "string", "enum": ["type-marks","operation-codes","schedules","opening-parameters","tags","wall-legend","sheets","view-scales","text-heights","rooms","door-rooms","view-templates","egress","tempered","references","cover-sheet"] },
+                            "description": "Optional. Run only these checks. Default: all." } },
               "additionalProperties": false }
             """, ReadOnly: true),
 

@@ -64,6 +64,7 @@ public sealed class StandardsStore
         }
         profile.Manual ??= new ManualSettings();
         profile.Manual.DrawingAreaInsetsInches ??= new SheetInsets();
+        profile.Manual.Audit ??= new Checks.AuditSettings();
         return profile;
     }
 
