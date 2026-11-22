@@ -6,3 +6,4 @@ obj/
 .idea/
 TestResults/
 *.log
+snapshots/
