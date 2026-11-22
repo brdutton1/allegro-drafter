@@ -107,7 +107,7 @@ Then in Revit, open the **Approvals** pane, read the changes, and Approve or Rej
 | Status says server NOT running, port in use | Another Revit is open with the add-in. Close it, or change `port` in `%APPDATA%\AllegroDrafter\mcp.json` and restart Revit. |
 | Status says "Access is denied" on the port | Run once in an admin PowerShell: `netsh http add urlacl url=http://localhost:48884/ user=$env:USERNAME` |
 | Claude Desktop has no Developer tab, or never starts allegro-drafter | Use Claude Code instead (step 5). |
-| Claude Code only sees the tools in one folder | It was added without `--scope user`. Run `.\\scripts\\connect-claude.ps1 -ClaudeCode`. |
+| Claude Code only sees the tools in one folder | It was added without `--scope user`. Run `.\scripts\connect-claude.ps1 -ClaudeCode`. |
 | Claude says "Revit is not running" | Open Revit with a project. The bridge reconnects on the next call. |
 | Claude says "Revit is busy" | A dialog or edit mode is open in Revit. Finish it. |
 | Every proposal refused: "No office standards profile" | Do step 4. |
