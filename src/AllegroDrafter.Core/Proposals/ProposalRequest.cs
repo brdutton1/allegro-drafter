@@ -25,6 +25,7 @@ public static class ProposalRequestParser
             ToolNames.ProposeCallouts => ParseCallouts(args),
             ToolNames.ProposeNotes => ParseNotes(args),
             ToolNames.ProposeDimensions => ParseDimensions(args),
+            ToolNames.ProposeScheduleFields => ParseScheduleFields(args),
             _ => throw new ToolArgumentException($"'{toolName}' is not a proposal tool."),
         };
         return new ProposalRequest(title, rationale, changes);
@@ -289,6 +290,31 @@ public static class ProposalRequestParser
                 Args.OptionalString(item, "viewType", path),
                 offset, step,
                 Args.OptionalBool(item, "allowExisting", path)));
+        }
+        return changes;
+    }
+
+    private static List<ProposalChange> ParseScheduleFields(JsonObject args)
+    {
+        var list = Args.RequiredArray(args, "schedules", "arguments");
+        var changes = new List<ProposalChange>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var path = $"schedules[{i}]";
+            var item = Args.ObjectAt(list, i, "schedules");
+            var add = new List<FieldToAdd>();
+            var addArray = Args.OptionalArray(item, "add", path);
+            if (addArray is not null)
+            {
+                for (var j = 0; j < addArray.Count; j++)
+                {
+                    var field = Args.ObjectAt(addArray, j, $"{path}.add");
+                    add.Add(new FieldToAdd(Args.RequiredString(field, "field", $"{path}.add[{j}]"), Args.OptionalString(field, "after", $"{path}.add[{j}]")));
+                }
+            }
+            var remove = Args.OptionalStringArray(item, "remove", path)?.ToList() ?? new List<string>();
+            if (add.Count == 0 && remove.Count == 0) throw new ToolArgumentException($"{path}: give fields to add and/or remove.");
+            changes.Add(new ScheduleFieldsChange(Args.RequiredString(item, "schedule", path), add, remove));
         }
         return changes;
     }

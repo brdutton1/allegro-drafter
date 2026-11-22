@@ -33,7 +33,7 @@ public static class ToolCatalog
         4. Keep each proposal to one reviewable batch (max 50 changes), grouped logically (e.g. "Architectural floor plan sheets").
         5. Use get_proposal to check whether the designer approved, and read the result message if it failed.
         6. Follow the office rules in get_standards (section "manual"), including the typical sheet index for the project type.
-        7. Schedules: check list_schedules first; only create what's missing, by copying the office schedule. To fill data, read elements with list_elements and use the exact parameter names it reports.
+        7. Schedules: check list_schedules first; only create what's missing, by copying the office schedule. Add or remove columns with propose_schedule_fields. To fill data, read elements with list_elements and use the exact parameter names it reports.
         8. Finishes: use only codes from manual.finishCodes. If that list is empty, read the finish legend with read_legend, show the designer the codes you found, and ask them to add them to standards.json before proposing finishes.
         9. Never guess door or window marks, room names or finishes the designer hasn't given you a rule for. Ask.
         10. Annotation: tag with propose_tags, dimension plans with propose_dimensions (exterior strings), callouts with propose_callouts, notes with propose_notes. Propose one view or one sheet's worth at a time so the designer can check it.
@@ -217,6 +217,22 @@ public static class ToolCatalog
                     "textType": { "type": "string", "description": "Exact name from get_standards textNoteTypes." },
                     "xFeet": { "type": "number" }, "yFeet": { "type": "number" },
                     "leaderToElementId": { "type": "integer", "description": "Optional element to point the leader at (plan views)." } },
+                  "additionalProperties": false } } },
+              "additionalProperties": false }
+            """, ReadOnly: false),
+
+        new ToolDefinition(ToolNames.ProposeScheduleFields, "Propose schedule columns",
+            "Proposes adding or removing columns (fields) on an existing schedule, e.g. add Mark after Type to the door schedule. Field names are the schedulable parameter names (list_elements includeParameterList shows them). Nothing changes until the designer approves.",
+            $$"""
+            { "type": "object", "required": ["title","schedules"], "properties": {
+                {{TitleRationale}},
+                "schedules": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["schedule"], "properties": {
+                    "schedule": { "type": "string", "description": "Exact schedule name from list_schedules." },
+                    "add": { "type": "array", "items": { "type": "object", "required": ["field"], "properties": {
+                        "field": { "type": "string" },
+                        "after": { "type": "string", "description": "Existing (or just-added) column to insert after. Omit to add at the end." } },
+                      "additionalProperties": false } },
+                    "remove": { "type": "array", "items": { "type": "string" } } },
                   "additionalProperties": false } } },
               "additionalProperties": false }
             """, ReadOnly: false),

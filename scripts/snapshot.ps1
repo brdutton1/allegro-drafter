@@ -12,6 +12,17 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Windows PowerShell 5.1 serializes arrays as { "value": [...], "Count": n }. This turns that off.
+if ($PSVersionTable.PSVersion.Major -lt 6) {
+    Remove-TypeData -TypeName System.Array -ErrorAction SilentlyContinue
+}
+
+function Test-Failed($value) {
+    # Only a single object with an 'error' property is a failure. Lists never are.
+    return ($value -isnot [System.Array]) -and ($null -ne $value) -and ($value.PSObject.Properties.Name -contains 'error')
+}
+
 $configPath = Join-Path $env:APPDATA 'AllegroDrafter\mcp.json'
 if (-not (Test-Path $configPath)) { throw 'No mcp.json. Start Revit with the Allegro Drafter add-in first.' }
 $config = Get-Content $configPath -Raw | ConvertFrom-Json
@@ -37,7 +48,7 @@ function Invoke-Tool([string] $name, [hashtable] $arguments = @{}) {
 
 Write-Host 'Reading the open Revit project (read-only)...'
 $info = Invoke-Tool 'get_project_info'
-if ($info.error) { throw "Revit didn't answer: $($info.error)" }
+if (Test-Failed $info) { throw "Revit didn't answer: $($info.error)" }
 
 $snapshot = [ordered]@{
     takenUtc   = (Get-Date).ToUniversalTime().ToString('o')
@@ -57,7 +68,7 @@ $snapshot = [ordered]@{
 
 $legendList = Invoke-Tool 'read_legend'
 $snapshot.legendList = $legendList
-if (-not $legendList.error) {
+if (-not (Test-Failed $legendList)) {
     foreach ($name in @($legendList.legends)) {
         if ($name) { $snapshot.legends[$name] = Invoke-Tool 'read_legend' @{ name = $name } }
     }
@@ -68,10 +79,12 @@ $title = ($info.title -replace '[\\/:*?"<>|]', '_')
 $file = Join-Path $OutDir ("{0}-{1}.json" -f $title, (Get-Date -Format 'yyyyMMdd-HHmm'))
 [System.IO.File]::WriteAllText($file, ($snapshot | ConvertTo-Json -Depth 30), (New-Object System.Text.UTF8Encoding $false))
 
-$failed = @($snapshot.GetEnumerator() | Where-Object { $_.Value -is [psobject] -and $_.Value.error } | ForEach-Object { $_.Key })
+$failed = @($snapshot.GetEnumerator() | Where-Object { Test-Failed $_.Value } | ForEach-Object { "$($_.Key): $($_.Value.error)" })
 Write-Host ''
 Write-Host "Saved: $file"
 if ($failed.Count -gt 0) {
-    Write-Host "Not available in this add-in version (run git pull + install.ps1 to get them): $($failed -join ', ')"
+    Write-Host 'These parts failed:'
+    $failed | ForEach-Object { Write-Host "  $_" }
+    Write-Host '(If it says the tool is unknown or not implemented: git pull, close Revit, run .\scripts\install.ps1.)'
 }
 Write-Host 'Send this file to Claude. It contains project data (client name, rooms), so share it only where you want it.'

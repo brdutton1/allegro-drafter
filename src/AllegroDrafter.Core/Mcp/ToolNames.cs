@@ -23,6 +23,7 @@ public static class ToolNames
     public const string ProposeCallouts = "propose_callouts";
     public const string ProposeNotes = "propose_notes";
     public const string ProposeDimensions = "propose_dimensions";
+    public const string ProposeScheduleFields = "propose_schedule_fields";
 
     public const string ListProposals = "list_proposals";
     public const string GetProposal = "get_proposal";
@@ -37,6 +38,6 @@ public static class ToolNames
     {
         ProposeSheets, ProposeSheetSet, ProposePlaceViews, ProposeViewTemplates,
         ProposeSchedules, ProposeParameterValues,
-        ProposeTags, ProposeCallouts, ProposeNotes, ProposeDimensions,
+        ProposeTags, ProposeCallouts, ProposeNotes, ProposeDimensions, ProposeScheduleFields,
     };
 }

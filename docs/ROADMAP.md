@@ -26,6 +26,7 @@
 - [x] Create schedules by copying office schedules, or category + schedule view template, and place them on sheets
 - [x] Set door/window/room instance parameters (marks, names, numbers, finishes). Type parameters refused.
 - [x] Finish codes from the legend enforced on finish parameters
+- [x] Add/remove/position schedule columns
 - [ ] First run inside Revit on a copy of a finished job
 - [ ] Framing schedules
 - [ ] Place drafting-view details based on wall, roof and foundation types in the model

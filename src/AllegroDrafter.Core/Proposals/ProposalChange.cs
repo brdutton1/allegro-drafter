@@ -16,6 +16,7 @@ namespace AllegroDrafter.Core.Proposals;
 [JsonDerivedType(typeof(CalloutChange), "callout")]
 [JsonDerivedType(typeof(TextNoteChange), "textNote")]
 [JsonDerivedType(typeof(DimensionViewChange), "dimensionView")]
+[JsonDerivedType(typeof(ScheduleFieldsChange), "scheduleFields")]
 public abstract record ProposalChange
 {
     /// <summary>Plain-English line shown in the approval pane.</summary>
@@ -195,4 +196,25 @@ public sealed record DimensionViewChange(
         && ExpectedStrings == other.ExpectedStrings && Strategies.SequenceEqual(other.Strategies);
 
     public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
+}
+
+public sealed record FieldToAdd(string Field, string? After = null);
+
+/// <summary>Adds and removes columns on an existing schedule (e.g. add Mark to the door schedule).</summary>
+public sealed record ScheduleFieldsChange(string Schedule, IReadOnlyList<FieldToAdd> Add, IReadOnlyList<string> Remove) : ProposalChange
+{
+    public override string Describe()
+    {
+        var parts = new List<string>();
+        if (Add.Count > 0)
+            parts.Add("add " + string.Join(", ", Add.Select(a => a.After is null ? $"\"{a.Field}\"" : $"\"{a.Field}\" after \"{a.After}\"")));
+        if (Remove.Count > 0)
+            parts.Add("remove " + string.Join(", ", Remove.Select(r => $"\"{r}\"")));
+        return $"Schedule \"{Schedule}\": {string.Join("; ", parts)}";
+    }
+
+    public bool Equals(ScheduleFieldsChange? other) =>
+        other is not null && Schedule == other.Schedule && Add.SequenceEqual(other.Add) && Remove.SequenceEqual(other.Remove);
+
+    public override int GetHashCode() => HashCode.Combine(Schedule, Add.Count, Remove.Count);
 }

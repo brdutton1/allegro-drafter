@@ -150,6 +150,10 @@ internal static class ModelChecker
                     break;
                 }
 
+                case ScheduleFieldsChange fields:
+                    errors.AddRange(ScheduleEditor.Check(doc, fields).Select(e => prefix + e));
+                    break;
+
                 case TagViewChange tag:
                 {
                     var view = RevitLookup.ResolveView(doc, tag.ViewName, tag.ViewType, out var viewError);

@@ -112,6 +112,17 @@ public static class ProposalValidator
                         errors.Add(prefix + $"\"{dims.ViewName}\" is dimensioned more than once in this proposal.");
                     break;
 
+                case ScheduleFieldsChange fields:
+                {
+                    var names = fields.Add.Select(a => a.Field).Concat(fields.Remove).ToList();
+                    var repeated = names.GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
+                    if (repeated.Count > 0)
+                        errors.Add(prefix + $"\"{fields.Schedule}\": {string.Join(", ", repeated.Select(r => $"\"{r}\""))} listed more than once.");
+                    if (!scheduleNames.Add("fields|" + fields.Schedule))
+                        errors.Add(prefix + $"\"{fields.Schedule}\" is edited more than once in this proposal. Put all its field changes in one entry.");
+                    break;
+                }
+
                 case SetParametersChange set:
                     if (!elementIds.Add(set.ElementId))
                         errors.Add(prefix + $"Element {set.ElementId} appears more than once in this proposal. Put all its values in one entry.");

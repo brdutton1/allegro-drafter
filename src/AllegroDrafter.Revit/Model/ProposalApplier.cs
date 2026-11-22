@@ -33,7 +33,7 @@ internal static class ProposalApplier
         var newViews = new Dictionary<string, View>(StringComparer.OrdinalIgnoreCase);
         var drawingNotes = new List<string>();
         int sheetCount = 0, placedCount = 0, templateCount = 0, scheduleCount = 0, elementCount = 0, valueCount = 0;
-        int tagCount = 0, calloutCount = 0, noteCount = 0, dimensionCount = 0;
+        int tagCount = 0, calloutCount = 0, noteCount = 0, dimensionCount = 0, columnEdits = 0;
 
         var name = $"Allegro Drafter: {proposal.Title}";
         using var transaction = new Transaction(doc, name.Length > 80 ? name[..80] : name);
@@ -137,6 +137,11 @@ internal static class ProposalApplier
                         break;
                     }
 
+                    case ScheduleFieldsChange c:
+                        ScheduleEditor.Apply(doc, c);
+                        columnEdits++;
+                        break;
+
                     case TagViewChange c:
                     {
                         var view = RevitLookup.ResolveView(doc, c.ViewName, c.ViewType, out var error) ?? throw new InvalidOperationException(error);
@@ -202,6 +207,7 @@ internal static class ProposalApplier
             if (templateCount > 0) parts.Add($"{templateCount} view template(s) applied");
             if (scheduleCount > 0) parts.Add($"{scheduleCount} schedule(s) created");
             if (elementCount > 0) parts.Add($"{valueCount} value(s) set on {elementCount} element(s)");
+            if (columnEdits > 0) parts.Add($"columns updated on {columnEdits} schedule(s)");
             if (tagCount > 0) parts.Add($"{tagCount} tag(s) placed");
             if (calloutCount > 0) parts.Add($"{calloutCount} callout(s) added");
             if (noteCount > 0) parts.Add($"{noteCount} note(s) added");
