@@ -83,6 +83,7 @@ public sealed record ScheduleSortChange(string Schedule, IReadOnlyList<string> S
 /// </summary>
 public sealed record DeleteRoomsChange(IReadOnlyList<long> RoomIds, bool AllUnplaced = false, string? Summary = null) : ProposalChange
 {
+    [System.Text.Json.Serialization.JsonIgnore]
     public override bool IsDestructive => true;
 
     public override string Describe()
