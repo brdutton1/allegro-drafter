@@ -101,4 +101,24 @@ public static class Args
         }
         return result;
     }
+
+    public static long? OptionalLong(JsonObject obj, string key, string path)
+    {
+        if (!obj.TryGetPropertyValue(key, out var node) || node is null) return null;
+        if (node is JsonValue v && v.GetValueKind() == JsonValueKind.Number && v.TryGetValue<long>(out var l)) return l;
+        throw new ToolArgumentException($"{path}.{key} must be a whole number (an element id).");
+    }
+
+    public static IReadOnlyList<long>? OptionalLongArray(JsonObject obj, string key, string path)
+    {
+        var array = OptionalArray(obj, key, path);
+        if (array is null) return null;
+        var list = new List<long>();
+        for (var i = 0; i < array.Count; i++)
+        {
+            if (array[i] is JsonValue v && v.GetValueKind() == JsonValueKind.Number && v.TryGetValue<long>(out var l)) list.Add(l);
+            else throw new ToolArgumentException($"{path}.{key}[{i}] must be a whole number (an element id).");
+        }
+        return list;
+    }
 }

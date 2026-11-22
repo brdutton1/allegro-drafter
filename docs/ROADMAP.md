@@ -31,11 +31,18 @@
 - [ ] Place drafting-view details based on wall, roof and foundation types in the model
 - [ ] Detail callouts and sheet references
 
-## Phase 3: Annotation
-- [ ] Tag all doors / windows / rooms / walls in a view (tag types from standards)
+## Phase 3: Annotation (built, not yet run in Revit)
+- [x] Tag untagged doors / windows / rooms / walls in a view (office tag types or project default)
+- [x] Text notes with leaders (office text types). Code notes go through this.
+- [x] Detail callouts around a room, elements or a rectangle, with template, scale and sheet placement
+- [x] Reference callouts to existing standard detail views
+- [x] Exterior plan dimensions, three tiers (openings / wall jogs / overall). Geometry planner tested in Core.
+- [ ] First run inside Revit on a copy of a finished job
+- [ ] Tag collision avoidance (tags currently sit on the element center)
+- [ ] Interior dimensions (room-to-room, wall-to-wall)
+- [ ] Callouts in sections and elevations
 - [ ] Keynotes
-- [ ] General notes and code notes (2021 IRC + PPRBD) as text or legends
-- [ ] Dimensions: exterior wall strings, openings, overalls. Rule-based first, AI picks the strategy per view.
+- [ ] Angled and curved walls in dimensions
 
 ## Phase 4: Plan set QA
 - [ ] Punch list before issue: untagged elements, missing schedules, sheet index vs actual sheets, empty views, broken callouts, notes that contradict the model

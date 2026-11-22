@@ -30,8 +30,10 @@ internal static class ProposalApplier
         var created = new List<long>();
         var sheets = new Dictionary<string, ViewSheet>(StringComparer.OrdinalIgnoreCase);
         var autoPlace = new Dictionary<ElementId, (ViewSheet Sheet, List<SheetLayout.Placed> Items)>();
-        var schedules = new Dictionary<string, ViewSchedule>(StringComparer.OrdinalIgnoreCase);
+        var newViews = new Dictionary<string, View>(StringComparer.OrdinalIgnoreCase);
+        var drawingNotes = new List<string>();
         int sheetCount = 0, placedCount = 0, templateCount = 0, scheduleCount = 0, elementCount = 0, valueCount = 0;
+        int tagCount = 0, calloutCount = 0, noteCount = 0, dimensionCount = 0;
 
         var name = $"Allegro Drafter: {proposal.Title}";
         using var transaction = new Transaction(doc, name.Length > 80 ? name[..80] : name);
@@ -61,8 +63,8 @@ internal static class ProposalApplier
                     {
                         var sheet = sheets.TryGetValue(c.SheetNumber, out var s) ? s : RevitLookup.FindSheet(doc, c.SheetNumber)
                             ?? throw new InvalidOperationException($"Sheet {c.SheetNumber} not found.");
-                        View view = schedules.TryGetValue(c.ViewName, out var newSchedule)
-                            ? newSchedule
+                        View view = newViews.TryGetValue(c.ViewName, out var newView)
+                            ? newView
                             : RevitLookup.ResolveView(doc, c.ViewName, c.ViewType, out var error) ?? throw new InvalidOperationException(error);
                         var point = c.HasPosition ? new XYZ(c.XFeet!.Value, c.YFeet!.Value, 0) : XYZ.Zero;
 
@@ -119,7 +121,7 @@ internal static class ProposalApplier
                             schedule.ViewTemplateId = template.Id;
                         }
                         schedule.Name = c.Name;
-                        schedules[c.Name] = schedule;
+                        newViews[c.Name] = schedule;
                         created.Add(schedule.Id.Value);
                         scheduleCount++;
                         break;
@@ -132,6 +134,45 @@ internal static class ProposalApplier
                         foreach (var value in c.Values) ParameterWriter.Write(element, value.Name, value.Value);
                         elementCount++;
                         valueCount += c.Values.Count;
+                        break;
+                    }
+
+                    case TagViewChange c:
+                    {
+                        var view = RevitLookup.ResolveView(doc, c.ViewName, c.ViewType, out var error) ?? throw new InvalidOperationException(error);
+                        var tags = Tagging.Tag(doc, view, c);
+                        created.AddRange(tags);
+                        tagCount += tags.Count;
+                        break;
+                    }
+
+                    case CalloutChange c:
+                    {
+                        var view = Callouts.Create(doc, c);
+                        if (!c.IsReference)
+                        {
+                            newViews[c.Name!] = view;
+                            created.Add(view.Id.Value);
+                        }
+                        calloutCount++;
+                        break;
+                    }
+
+                    case TextNoteChange c:
+                    {
+                        var view = RevitLookup.ResolveView(doc, c.ViewName, c.ViewType, out var error) ?? throw new InvalidOperationException(error);
+                        created.Add(Notes.Create(doc, view, c).Id.Value);
+                        noteCount++;
+                        break;
+                    }
+
+                    case DimensionViewChange c:
+                    {
+                        var plan = Dimensioning.ResolvePlan(doc, c, out var error) ?? throw new InvalidOperationException(error);
+                        var (dims, notes) = Dimensioning.Draw(doc, plan, c);
+                        created.AddRange(dims);
+                        dimensionCount += dims.Count;
+                        drawingNotes.AddRange(notes.Select(n => $"{plan.Name}: {n}"));
                         break;
                     }
 
@@ -161,9 +202,16 @@ internal static class ProposalApplier
             if (templateCount > 0) parts.Add($"{templateCount} view template(s) applied");
             if (scheduleCount > 0) parts.Add($"{scheduleCount} schedule(s) created");
             if (elementCount > 0) parts.Add($"{valueCount} value(s) set on {elementCount} element(s)");
+            if (tagCount > 0) parts.Add($"{tagCount} tag(s) placed");
+            if (calloutCount > 0) parts.Add($"{calloutCount} callout(s) added");
+            if (noteCount > 0) parts.Add($"{noteCount} note(s) added");
+            if (dimensionCount > 0) parts.Add($"{dimensionCount} dimension string(s) drawn");
+            if (parts.Count == 0) parts.Add("Nothing needed changing");
             var message = string.Join(", ", parts) + ".";
             if (autoPlace.Count > 0) message += " Auto-placed views are roughly arranged; adjust as needed.";
             if (overflowNotes.Count > 0) message += " Check: " + string.Join("; ", overflowNotes) + ".";
+            if (tagCount > 0 || dimensionCount > 0) message += " Tags and dimensions are placed by rule; nudge any that collide.";
+            if (drawingNotes.Count > 0) message += " Notes: " + string.Join(" ", drawingNotes);
             message += " Undo with Ctrl+Z if needed.";
             return new ApplyResult(true, message, created);
         }

@@ -19,6 +19,10 @@ public static class ToolNames
     public const string ProposeViewTemplates = "propose_view_templates";
     public const string ProposeSchedules = "propose_schedules";
     public const string ProposeParameterValues = "propose_parameter_values";
+    public const string ProposeTags = "propose_tags";
+    public const string ProposeCallouts = "propose_callouts";
+    public const string ProposeNotes = "propose_notes";
+    public const string ProposeDimensions = "propose_dimensions";
 
     public const string ListProposals = "list_proposals";
     public const string GetProposal = "get_proposal";
@@ -26,9 +30,13 @@ public static class ToolNames
     /// <summary>Categories Claude may schedule and edit in this phase.</summary>
     public static readonly IReadOnlyList<string> EditableCategories = new[] { "doors", "windows", "rooms" };
 
+    /// <summary>Categories Claude may tag.</summary>
+    public static readonly IReadOnlyList<string> TaggableCategories = new[] { "doors", "windows", "rooms", "walls" };
+
     public static readonly IReadOnlySet<string> ProposalTools = new HashSet<string>
     {
         ProposeSheets, ProposeSheetSet, ProposePlaceViews, ProposeViewTemplates,
         ProposeSchedules, ProposeParameterValues,
+        ProposeTags, ProposeCallouts, ProposeNotes, ProposeDimensions,
     };
 }

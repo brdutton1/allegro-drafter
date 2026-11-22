@@ -12,6 +12,10 @@ namespace AllegroDrafter.Core.Proposals;
 [JsonDerivedType(typeof(ApplyViewTemplateChange), "applyViewTemplate")]
 [JsonDerivedType(typeof(CreateScheduleChange), "createSchedule")]
 [JsonDerivedType(typeof(SetParametersChange), "setParameters")]
+[JsonDerivedType(typeof(TagViewChange), "tagView")]
+[JsonDerivedType(typeof(CalloutChange), "callout")]
+[JsonDerivedType(typeof(TextNoteChange), "textNote")]
+[JsonDerivedType(typeof(DimensionViewChange), "dimensionView")]
 public abstract record ProposalChange
 {
     /// <summary>Plain-English line shown in the approval pane.</summary>
@@ -85,4 +89,110 @@ public sealed record SetParametersChange(long ElementId, string ElementLabel, IR
         other is not null && ElementId == other.ElementId && ElementLabel == other.ElementLabel && Values.SequenceEqual(other.Values);
 
     public override int GetHashCode() => HashCode.Combine(ElementId, ElementLabel, Values.Count);
+}
+
+/// <summary>Tags every (untagged) element of one category visible in a view.</summary>
+public sealed record TagViewChange(
+    string ViewName,
+    string Category,
+    string? TagType = null,
+    string? ViewType = null,
+    bool Leader = false,
+    bool UntaggedOnly = true,
+    int? ExpectedCount = null) : ProposalChange
+{
+    public override string Describe()
+    {
+        var count = ExpectedCount is null ? "" : $"{ExpectedCount} ";
+        var which = UntaggedOnly ? "untagged " : "";
+        var tag = TagType ?? "the default tag";
+        return $"Tag {count}{which}{Category} in \"{ViewName}\" with {tag}{(Leader ? " (with leaders)" : "")}";
+    }
+}
+
+/// <summary>Where a callout goes: around a room, around elements, or an explicit plan rectangle (feet).</summary>
+public sealed record CalloutArea(
+    string? RoomNumber = null,
+    IReadOnlyList<long>? ElementIds = null,
+    double? MinX = null,
+    double? MinY = null,
+    double? MaxX = null,
+    double? MaxY = null,
+    double MarginFeet = 1.0)
+{
+    public string Describe() =>
+        RoomNumber is not null ? $"around room {RoomNumber}"
+        : ElementIds is { Count: > 0 } ? $"around {ElementIds.Count} element(s)"
+        : $"at ({MinX:0.##}, {MinY:0.##}) to ({MaxX:0.##}, {MaxY:0.##})";
+
+    public bool Equals(CalloutArea? other) =>
+        other is not null && RoomNumber == other.RoomNumber && MinX == other.MinX && MinY == other.MinY && MaxX == other.MaxX
+        && MaxY == other.MaxY && MarginFeet == other.MarginFeet
+        && (ElementIds ?? Array.Empty<long>()).SequenceEqual(other.ElementIds ?? Array.Empty<long>());
+
+    public override int GetHashCode() => HashCode.Combine(RoomNumber, MinX, MinY, MaxX, MaxY, MarginFeet);
+}
+
+/// <summary>
+/// A callout in a plan view. Detail callout: creates a new view (Name + ViewFamilyType).
+/// Reference callout: points at an existing view such as a standard detail (ReferenceView).
+/// </summary>
+public sealed record CalloutChange(
+    string ParentView,
+    CalloutArea Area,
+    string? ParentViewType = null,
+    string? Name = null,
+    string? ViewFamilyType = null,
+    string? ReferenceView = null,
+    string? TemplateName = null,
+    int? Scale = null) : ProposalChange
+{
+    public bool IsReference => ReferenceView is not null;
+
+    public override string Describe() => IsReference
+        ? $"Reference callout to \"{ReferenceView}\" in \"{ParentView}\" {Area.Describe()}"
+        : $"Callout \"{Name}\" ({ViewFamilyType}{(Scale is null ? "" : $", 1:{Scale}")}{(TemplateName is null ? "" : $", template \"{TemplateName}\"")}) in \"{ParentView}\" {Area.Describe()}";
+}
+
+/// <summary>A text note, optionally with a leader to an element. Coordinates are plan/drafting view feet.</summary>
+public sealed record TextNoteChange(
+    string ViewName,
+    string Text,
+    string TextType,
+    double XFeet,
+    double YFeet,
+    string? ViewType = null,
+    long? LeaderToElementId = null) : ProposalChange
+{
+    public override string Describe()
+    {
+        var text = Text.Length > 60 ? Text[..57] + "..." : Text;
+        var leader = LeaderToElementId is null ? "" : $" with leader to element {LeaderToElementId}";
+        return $"Note \"{text.Replace("\n", " / ")}\" ({TextType}) in \"{ViewName}\"{leader}";
+    }
+}
+
+/// <summary>Rule-based exterior dimension strings on a floor plan.</summary>
+public sealed record DimensionViewChange(
+    string ViewName,
+    IReadOnlyList<string> Strategies,
+    string? DimensionType = null,
+    string? ViewType = null,
+    double OffsetFeet = 4.0,
+    double StepFeet = 2.0,
+    bool AllowExisting = false,
+    int? ExpectedStrings = null) : ProposalChange
+{
+    public override string Describe()
+    {
+        var count = ExpectedStrings is null ? "" : $"{ExpectedStrings} ";
+        return $"Add {count}exterior dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{(DimensionType is null ? "" : $" ({DimensionType})")}";
+    }
+
+    public bool Equals(DimensionViewChange? other) =>
+        other is not null && ViewName == other.ViewName && ViewType == other.ViewType && DimensionType == other.DimensionType
+        && OffsetFeet == other.OffsetFeet && StepFeet == other.StepFeet && AllowExisting == other.AllowExisting
+        && ExpectedStrings == other.ExpectedStrings && Strategies.SequenceEqual(other.Strategies);
+
+    public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
 }

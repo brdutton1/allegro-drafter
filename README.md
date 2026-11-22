@@ -27,7 +27,7 @@ Three rules hold the whole thing together:
 
 ## Status
 
-Phase 1 (sheet builder) runs in Revit 2026. Phase 2 (schedules) is built and compiles against the real Revit 2025 and 2026 APIs. It has **not been run inside Revit yet**. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Phase 1 (sheet builder) runs in Revit 2026. Phases 2 and 3 (schedules, tags, dimensions, callouts, notes) are built and compile against the real Revit 2025 and 2026 APIs. It has **not been run inside Revit yet**. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Tool | What it does |
 |---|---|
@@ -38,6 +38,10 @@ Phase 1 (sheet builder) runs in Revit 2026. Phase 2 (schedules) is built and com
 | `list_schedules`, `list_elements`, `read_legend` | Read schedules, doors/windows/rooms with parameters, legend text |
 | `propose_schedules` | Door, window, room and finish schedules from office schedules, placed on sheets |
 | `propose_parameter_values` | Marks, room names/numbers, finishes (finish codes enforced) |
+| `propose_tags` | Tag untagged doors, windows, rooms, walls in a view with office tag types |
+| `propose_dimensions` | Exterior plan dimension strings: openings, wall jogs, overall |
+| `propose_callouts` | Detail callouts (new enlarged views) and reference callouts to standard details |
+| `propose_notes` | Text notes with leaders, office text types only |
 | `list_proposals`, `get_proposal` | Check what you approved or rejected |
 
 ## Get started

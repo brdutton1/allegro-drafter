@@ -128,6 +128,18 @@ On a Save As copy of a finished job, with Revit open, ask Claude Code:
 
 Approve or reject each batch in the Revit pane.
 
+## Annotation (Phase 3)
+
+Work one view at a time, so each approval is easy to check:
+
+- "Tag all untagged doors and windows on the Level 1 floor plan with our standard tags."
+- "Add exterior dimensions to the Level 1 floor plan: openings, wall jogs and overall."
+- "Make an enlarged plan callout around room 104 at 1/2\" = 1'-0\" and put it on A5.1."
+- "Add a reference callout to our footing detail at the north wall."
+- "Add a smoke alarm note with a leader to each bedroom." (give it the wording)
+
+Exterior dimensions need wall types with **Function = Exterior**, and door/window families need a **Center (Left/Right)** reference. Claude tells you when either is missing. Tags land on the element center; drag any that collide.
+
 ## Troubleshooting
 
 | Symptom | Fix |

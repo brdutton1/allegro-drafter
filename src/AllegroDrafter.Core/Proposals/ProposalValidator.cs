@@ -35,6 +35,11 @@ public static class ProposalValidator
         var elementIds = new HashSet<long>();
         var scheduleTemplates = profile.ViewTemplates.Where(t => t.ViewType == "Schedule").Select(t => t.Name).Distinct().ToList();
         var finishParameters = new HashSet<string>(profile.Manual.FinishParameters ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
+        var tagTypes = profile.TagTypes.Select(t => t.Name).Distinct().ToList();
+        var viewFamilyTypes = profile.ViewFamilyTypes.Select(t => t.Name).Distinct().ToList();
+        var newViewNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var taggedViews = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var dimensionedViews = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var finishCodes = (profile.Manual.FinishCodes ?? new List<FinishCode>()).Select(f => f.Code.Trim()).Where(c => c.Length > 0).Distinct().ToList();
 
         for (var i = 0; i < request.Changes.Count; i++)
@@ -74,6 +79,37 @@ public static class ProposalValidator
                     {
                         errors.Add(prefix + Names.UnknownNameMessage("Schedule view template", schedule.TemplateName!, scheduleTemplates));
                     }
+                    break;
+
+                case TagViewChange tag:
+                    if (tag.TagType is not null && !tagTypes.Contains(tag.TagType, StringComparer.Ordinal))
+                        errors.Add(prefix + Names.UnknownNameMessage("Tag type", tag.TagType, tagTypes));
+                    if (!taggedViews.Add($"{tag.ViewType}|{tag.ViewName}|{tag.Category}"))
+                        errors.Add(prefix + $"{tag.Category} in \"{tag.ViewName}\" are tagged more than once in this proposal.");
+                    break;
+
+                case CalloutChange callout:
+                    if (!callout.IsReference)
+                    {
+                        if (!viewFamilyTypes.Contains(callout.ViewFamilyType!, StringComparer.Ordinal))
+                            errors.Add(prefix + Names.UnknownNameMessage("View type", callout.ViewFamilyType!, viewFamilyTypes));
+                        if (!newViewNames.Add(callout.Name!))
+                            errors.Add(prefix + $"View \"{callout.Name}\" is created more than once in this proposal.");
+                    }
+                    if (callout.TemplateName is not null && !templates.Contains(callout.TemplateName, StringComparer.Ordinal))
+                        errors.Add(prefix + Names.UnknownNameMessage("View template", callout.TemplateName, templates));
+                    break;
+
+                case TextNoteChange note:
+                    if (!profile.TextNoteTypes.Contains(note.TextType, StringComparer.Ordinal))
+                        errors.Add(prefix + Names.UnknownNameMessage("Text type", note.TextType, profile.TextNoteTypes));
+                    break;
+
+                case DimensionViewChange dims:
+                    if (dims.DimensionType is not null && !profile.DimensionTypes.Contains(dims.DimensionType, StringComparer.Ordinal))
+                        errors.Add(prefix + Names.UnknownNameMessage("Dimension type", dims.DimensionType, profile.DimensionTypes));
+                    if (!dimensionedViews.Add($"{dims.ViewType}|{dims.ViewName}"))
+                        errors.Add(prefix + $"\"{dims.ViewName}\" is dimensioned more than once in this proposal.");
                     break;
 
                 case SetParametersChange set:

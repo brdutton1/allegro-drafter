@@ -16,7 +16,7 @@ internal static class ModelChecker
         var newSheets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var placedInProposal = new HashSet<ElementId>();
         var templated = new HashSet<ElementId>();
-        var newSchedules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var newViews = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var placement = RevitLookup.PlacementMap(doc);
 
         for (var i = 0; i < changes.Count; i++)
@@ -45,8 +45,8 @@ internal static class ModelChecker
                         break;
                     }
 
-                    if (newSchedules.Contains(place.ViewName) && (place.ViewType is null || place.ViewType.Equals("Schedule", StringComparison.OrdinalIgnoreCase)))
-                        break; // Created earlier in this proposal. Schedules can go on any sheet.
+                    if (newViews.Contains(place.ViewName))
+                        break; // Created earlier in this proposal (schedule or callout view).
 
                     var view = RevitLookup.ResolveView(doc, place.ViewName, place.ViewType, out var viewError);
                     if (view is null)
@@ -103,7 +103,7 @@ internal static class ModelChecker
 
                 case CreateScheduleChange schedule:
                 {
-                    newSchedules.Add(schedule.Name);
+                    newViews.Add(schedule.Name);
                     if (RevitLookup.ScheduleNameTaken(doc, schedule.Name))
                         errors.Add(prefix + $"A schedule named \"{schedule.Name}\" already exists. Use it, or pick another name.");
 
@@ -150,6 +150,93 @@ internal static class ModelChecker
                     break;
                 }
 
+                case TagViewChange tag:
+                {
+                    var view = RevitLookup.ResolveView(doc, tag.ViewName, tag.ViewType, out var viewError);
+                    if (view is null)
+                    {
+                        errors.Add(prefix + viewError);
+                        break;
+                    }
+                    var problem = Tagging.CheckView(view, tag.Category);
+                    if (problem is not null)
+                    {
+                        errors.Add(prefix + problem);
+                        break;
+                    }
+                    if (Tagging.ResolveTagType(doc, tag.Category, tag.TagType, out var tagError) is null)
+                    {
+                        errors.Add(prefix + tagError);
+                        break;
+                    }
+                    if (Tagging.Candidates(doc, view, tag.Category, tag.UntaggedOnly).Count == 0)
+                        errors.Add(prefix + $"Nothing to tag: no {(tag.UntaggedOnly ? "untagged " : "")}{tag.Category} are visible in \"{view.Name}\".");
+                    break;
+                }
+
+                case CalloutChange callout:
+                {
+                    var parent = Callouts.ResolveParent(doc, callout, out var parentError);
+                    if (parent is null)
+                    {
+                        errors.Add(prefix + parentError);
+                        break;
+                    }
+                    if (Callouts.Area(doc, parent, callout.Area, out var areaError) is null) errors.Add(prefix + areaError);
+
+                    if (callout.IsReference)
+                    {
+                        var target = RevitLookup.ResolveView(doc, callout.ReferenceView!, null, out var targetError);
+                        if (target is null) errors.Add(prefix + targetError);
+                        else if (target.ViewType is not (ViewType.DraftingView or ViewType.Detail or ViewType.FloorPlan or ViewType.CeilingPlan))
+                            errors.Add(prefix + $"\"{target.Name}\" is a {target.ViewType} view. A reference callout in a plan can point at a drafting view, detail or plan.");
+                        break;
+                    }
+
+                    if (Callouts.ResolveType(doc, parent, callout.ViewFamilyType!, out var typeError) is null) errors.Add(prefix + typeError);
+                    if (Callouts.ViewNameTaken(doc, callout.Name!) || !newViews.Add(callout.Name!))
+                        errors.Add(prefix + $"A view named \"{callout.Name}\" already exists. Pick another name.");
+                    if (callout.TemplateName is not null && RevitLookup.FindTemplate(doc, callout.TemplateName) is null)
+                        errors.Add(prefix + $"View template '{callout.TemplateName}' is in the office standards but not in this project.");
+                    break;
+                }
+
+                case TextNoteChange note:
+                {
+                    var view = RevitLookup.ResolveView(doc, note.ViewName, note.ViewType, out var viewError);
+                    if (view is null)
+                    {
+                        errors.Add(prefix + viewError);
+                        break;
+                    }
+                    var problem = Notes.CheckView(view, note);
+                    if (problem is not null) errors.Add(prefix + problem);
+                    if (Notes.ResolveType(doc, note.TextType) is null)
+                        errors.Add(prefix + $"Text type '{note.TextType}' is in the office standards but not in this project.");
+                    if (note.LeaderToElementId is long id && doc.GetElement(new ElementId(id)) is null)
+                        errors.Add(prefix + $"Leader target element {id} doesn't exist.");
+                    break;
+                }
+
+                case DimensionViewChange dims:
+                {
+                    var plan = Dimensioning.ResolvePlan(doc, dims, out var planError);
+                    if (plan is null)
+                    {
+                        errors.Add(prefix + planError);
+                        break;
+                    }
+                    if (!dims.AllowExisting && Dimensioning.HasDimensions(doc, plan))
+                        errors.Add(prefix + $"\"{plan.Name}\" already has dimensions. Adding more would double up. Set allowExisting to add anyway.");
+                    if (dims.DimensionType is not null && Dimensioning.ResolveType(doc, dims.DimensionType) is null)
+                        errors.Add(prefix + $"Linear dimension type '{dims.DimensionType}' isn't in this project.");
+                    var data = Dimensioning.Extract(doc, plan);
+                    var planned = Dimensioning.Plan(data, dims);
+                    if (planned.Strings.Count == 0)
+                        errors.Add(prefix + $"No dimension strings possible in \"{plan.Name}\". " + string.Join(" ", data.Notes.Concat(planned.Notes)));
+                    break;
+                }
+
                 default:
                     errors.Add(prefix + $"Unsupported change type {changes[i].GetType().Name}.");
                     break;
@@ -158,10 +245,20 @@ internal static class ModelChecker
         return errors;
     }
 
-    /// <summary>Swaps the AI's element labels for the real ones from the model, so the designer reviews the truth.</summary>
-    public static IReadOnlyList<ProposalChange> WithModelLabels(Document doc, IReadOnlyList<ProposalChange> changes) =>
-        changes.Select(change => change is SetParametersChange set && doc.GetElement(new ElementId(set.ElementId)) is { } element
-                ? set with { ElementLabel = RevitLookup.ElementLabel(element) }
-                : change)
+    /// <summary>
+    /// Fills in what the designer needs to judge a change: real element labels from the model,
+    /// how many tags will be placed, how many dimension strings will be drawn.
+    /// </summary>
+    public static IReadOnlyList<ProposalChange> Annotate(Document doc, IReadOnlyList<ProposalChange> changes) =>
+        changes.Select(change => change switch
+            {
+                SetParametersChange set when doc.GetElement(new ElementId(set.ElementId)) is { } element
+                    => set with { ElementLabel = RevitLookup.ElementLabel(element) },
+                TagViewChange tag when RevitLookup.ResolveView(doc, tag.ViewName, tag.ViewType, out _) is { } view
+                    => tag with { ExpectedCount = Tagging.Candidates(doc, view, tag.Category, tag.UntaggedOnly).Count },
+                DimensionViewChange dims when Dimensioning.ResolvePlan(doc, dims, out _) is { } plan
+                    => dims with { ExpectedStrings = Dimensioning.Plan(Dimensioning.Extract(doc, plan), dims).Strings.Count },
+                _ => change,
+            })
             .ToList();
 }
