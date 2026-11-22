@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Tiny exe that Claude Desktop / Claude Code start (stdio MCP).
+    It answers tool listings itself and forwards tool calls to the Revit add-in on localhost.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>AllegroDrafter.Bridge</AssemblyName>
+    <RootNamespace>AllegroDrafter.Bridge</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AllegroDrafter.Core\AllegroDrafter.Core.csproj" />
+  </ItemGroup>
+</Project>

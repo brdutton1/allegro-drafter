@@ -1,0 +1,50 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{2659E4F2-F7A1-41F8-8D1D-EFAC188DD92B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllegroDrafter.Core", "src\AllegroDrafter.Core\AllegroDrafter.Core.csproj", "{7CE8A649-BA79-4875-B837-49BD82981CAE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllegroDrafter.Bridge", "src\AllegroDrafter.Bridge\AllegroDrafter.Bridge.csproj", "{63882DC6-C5DF-4C46-8306-CE7C8E995228}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllegroDrafter.Revit", "src\AllegroDrafter.Revit\AllegroDrafter.Revit.csproj", "{C741FB02-AD72-42C0-B905-912EA198537F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{164C9C1E-7F33-40E3-BF68-51847B4AE877}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AllegroDrafter.Core.Tests", "tests\AllegroDrafter.Core.Tests\AllegroDrafter.Core.Tests.csproj", "{2B387982-9395-4947-86D6-C1ED8BA99CCE}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7CE8A649-BA79-4875-B837-49BD82981CAE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CE8A649-BA79-4875-B837-49BD82981CAE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CE8A649-BA79-4875-B837-49BD82981CAE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CE8A649-BA79-4875-B837-49BD82981CAE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63882DC6-C5DF-4C46-8306-CE7C8E995228}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63882DC6-C5DF-4C46-8306-CE7C8E995228}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63882DC6-C5DF-4C46-8306-CE7C8E995228}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63882DC6-C5DF-4C46-8306-CE7C8E995228}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C741FB02-AD72-42C0-B905-912EA198537F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C741FB02-AD72-42C0-B905-912EA198537F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C741FB02-AD72-42C0-B905-912EA198537F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C741FB02-AD72-42C0-B905-912EA198537F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B387982-9395-4947-86D6-C1ED8BA99CCE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B387982-9395-4947-86D6-C1ED8BA99CCE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B387982-9395-4947-86D6-C1ED8BA99CCE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B387982-9395-4947-86D6-C1ED8BA99CCE}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7CE8A649-BA79-4875-B837-49BD82981CAE} = {2659E4F2-F7A1-41F8-8D1D-EFAC188DD92B}
+		{63882DC6-C5DF-4C46-8306-CE7C8E995228} = {2659E4F2-F7A1-41F8-8D1D-EFAC188DD92B}
+		{C741FB02-AD72-42C0-B905-912EA198537F} = {2659E4F2-F7A1-41F8-8D1D-EFAC188DD92B}
+		{2B387982-9395-4947-86D6-C1ED8BA99CCE} = {164C9C1E-7F33-40E3-BF68-51847B4AE877}
+	EndGlobalSection
+EndGlobal

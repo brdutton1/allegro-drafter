@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Goes in %APPDATA%\Autodesk\Revit\Addins\<year>\ next to an AllegroDrafter folder
+  holding the DLLs. scripts\install.ps1 does this for you.
+-->
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>Allegro Drafter</Name>
+    <Assembly>AllegroDrafter\AllegroDrafter.Revit.dll</Assembly>
+    <AddInId>6E0F3C7A-3B8B-4C55-9C7E-1A6D2B9F4E21</AddInId>
+    <FullClassName>AllegroDrafter.Revit.App</FullClassName>
+    <VendorId>ALLEGRO</VendorId>
+    <VendorDescription>Allegro Design Co.</VendorDescription>
+  </AddIn>
+</RevitAddIns>

@@ -1,0 +1,96 @@
+using System.Text.Json.Nodes;
+using AllegroDrafter.Core.Mcp;
+
+namespace AllegroDrafter.Core.Proposals;
+
+public sealed record ProposalRequest(string Title, string Rationale, IReadOnlyList<ProposalChange> Changes);
+
+/// <summary>Turns propose_* tool arguments into a list of changes.</summary>
+public static class ProposalRequestParser
+{
+    public static ProposalRequest Parse(string toolName, JsonObject args)
+    {
+        var title = Args.RequiredString(args, "title", "arguments");
+        var rationale = Args.OptionalString(args, "rationale", "arguments") ?? "";
+        var changes = toolName switch
+        {
+            ToolNames.ProposeSheets => ParseSheets(args, allowViews: false),
+            ToolNames.ProposeSheetSet => ParseSheets(args, allowViews: true),
+            ToolNames.ProposePlaceViews => ParsePlacements(args),
+            ToolNames.ProposeViewTemplates => ParseTemplates(args),
+            _ => throw new ToolArgumentException($"'{toolName}' is not a proposal tool."),
+        };
+        return new ProposalRequest(title, rationale, changes);
+    }
+
+    private static List<ProposalChange> ParseSheets(JsonObject args, bool allowViews)
+    {
+        var changes = new List<ProposalChange>();
+        var placements = new List<ProposalChange>();
+        var sheets = Args.RequiredArray(args, "sheets", "arguments");
+        for (var i = 0; i < sheets.Count; i++)
+        {
+            var path = $"sheets[{i}]";
+            var sheet = Args.ObjectAt(sheets, i, "sheets");
+            var number = Args.RequiredString(sheet, "number", path);
+            changes.Add(new CreateSheetChange(
+                number,
+                Args.RequiredString(sheet, "name", path),
+                Args.RequiredString(sheet, "titleBlock", path)));
+
+            var views = Args.OptionalArray(sheet, "views", path);
+            if (views is null) continue;
+            if (!allowViews) throw new ToolArgumentException($"{path}.views is not allowed here. Use propose_sheet_set to create sheets and place views together.");
+            for (var j = 0; j < views.Count; j++)
+            {
+                var viewPath = $"{path}.views[{j}]";
+                placements.Add(ParsePlacement(Args.ObjectAt(views, j, $"{path}.views"), viewPath, number));
+            }
+        }
+        // Sheets first, then placements, so every placement's sheet already exists when it runs.
+        changes.AddRange(placements);
+        return changes;
+    }
+
+    private static List<ProposalChange> ParsePlacements(JsonObject args)
+    {
+        var list = Args.RequiredArray(args, "placements", "arguments");
+        var changes = new List<ProposalChange>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var path = $"placements[{i}]";
+            var item = Args.ObjectAt(list, i, "placements");
+            changes.Add(ParsePlacement(item, path, Args.RequiredString(item, "sheetNumber", path)));
+        }
+        return changes;
+    }
+
+    private static PlaceViewChange ParsePlacement(JsonObject item, string path, string sheetNumber)
+    {
+        var x = Args.OptionalDouble(item, "xFeet", path);
+        var y = Args.OptionalDouble(item, "yFeet", path);
+        if (x.HasValue != y.HasValue) throw new ToolArgumentException($"{path}: give both xFeet and yFeet, or neither to auto-arrange.");
+        return new PlaceViewChange(
+            sheetNumber,
+            Args.RequiredString(item, "viewName", path),
+            Args.OptionalString(item, "viewType", path),
+            x,
+            y);
+    }
+
+    private static List<ProposalChange> ParseTemplates(JsonObject args)
+    {
+        var list = Args.RequiredArray(args, "assignments", "arguments");
+        var changes = new List<ProposalChange>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var path = $"assignments[{i}]";
+            var item = Args.ObjectAt(list, i, "assignments");
+            changes.Add(new ApplyViewTemplateChange(
+                Args.RequiredString(item, "viewName", path),
+                Args.RequiredString(item, "templateName", path),
+                Args.OptionalString(item, "viewType", path)));
+        }
+        return changes;
+    }
+}
