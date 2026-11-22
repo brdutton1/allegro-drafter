@@ -121,7 +121,9 @@ public class SetAuditorTests
         var facts = new SetFacts { OpeningTypes = { Type("windows", "ADC-Casement: 3060", "3050 CSMT", 3, 6) } };
         var r = Check(facts, "type-marks");
         Assert.Equal(CheckStatus.Fail, r.Status);
-        Assert.Contains("says 3'-0\" x 5'-0\", but the type is 3'-0\" x 6'-0\"", r.Findings[0].Message);
+        Assert.Contains("says 3'-0\" x 5'-0\", but the type doesn't match", r.Findings[0].Message);
+        Assert.Contains("The type is 3'-0\" x 6'-0\"", r.Findings[0].Message);
+        Assert.Equal("3060 CSMT", r.Findings[0].Suggestion);
     }
 
     [Fact]
@@ -352,7 +354,53 @@ public class SetAuditorTests
         };
         var r = Check(facts, "type-marks");
         Assert.Contains(r.Findings, x => x.Message.EndsWith("The type is 3'-0\" x 8'-0\", so it should be \"3080\"."));
-        Assert.Contains(r.Findings, x => x.Message.EndsWith("\"3050\" plus its operation, e.g. \"3050 CSMT\"."));
+        Assert.Contains(r.Findings, x => x.Message.EndsWith("The type is 3'-0\" x 5'-0\", so it should be \"3050 CSMT\"."));
+        Assert.All(r.Findings, x => Assert.NotNull(x.Target));
+    }
+
+    [Fact]
+    public void Suggested_marks_for_the_sample_job()
+    {
+        var types = new[]
+        {
+            Type("doors", "Supa 300: 3080", "376", 3, 8),
+            Type("doors", "Door-Interior-Single-Pocket-2_Panel-Wood: 2680", "466", 2.5, 8),
+            Type("doors", "Door-Sliding-Milgard-Tuscany_Series-4_Panel: 12' x 10'", "445", 12, 10),
+            Type("doors", "Supa 300: 2680", "372", 2.5, 8),
+            Type("doors", "Frameless Glass Door: 2680", "530", 2.5, 8),
+            Type("windows", "ADC-Window-Casement-Double: 6060", "6060 CMST", 6, 6),
+            Type("windows", "Window-Fixed-Milgard-Tuscany_Series-Picture_Window: 7920", "7920 TRANSOM", 7.75, 2),
+            Type("windows", "Mystery Window: 3050", "W1", 3, 5),
+            Type("windows", "ADC-Window-Casement-Full: 3050", "3050 CSMT", 3, 5),
+        };
+        var s = SetAuditor.SuggestMarks(types, new AuditSettings());
+
+        Assert.Equal("3080", s[("doors", "Supa 300: 3080")].Mark);
+        Assert.Equal("2680 PKT", s[("doors", "Door-Interior-Single-Pocket-2_Panel-Wood: 2680")].Mark);
+        Assert.Equal("120100 SLDR", s[("doors", "Door-Sliding-Milgard-Tuscany_Series-4_Panel: 12' x 10'")].Mark);
+        Assert.Equal("6060 CSMT", s[("windows", "ADC-Window-Casement-Double: 6060")].Mark);
+        Assert.Equal("7920 FIX", s[("windows", "Window-Fixed-Milgard-Tuscany_Series-Picture_Window: 7920")].Mark);
+
+        // Two 2'-6" x 8'-0" swing doors would both become "2680": withheld, with the reason.
+        Assert.Null(s[("doors", "Supa 300: 2680")].Mark);
+        Assert.Null(s[("doors", "Frameless Glass Door: 2680")].Mark);
+        Assert.Contains("would match \"Frameless Glass Door: 2680\"", s[("doors", "Supa 300: 2680")].Reason);
+
+        // No operation in the name: asks instead of guessing.
+        Assert.Null(s[("windows", "Mystery Window: 3050")].Mark);
+        Assert.Contains("Couldn't tell the operation", s[("windows", "Mystery Window: 3050")].Reason);
+
+        // Already right: nothing to suggest.
+        Assert.False(s.ContainsKey(("windows", "ADC-Window-Casement-Full: 3050")));
+    }
+
+    [Fact]
+    public void Operation_code_findings_carry_the_fix()
+    {
+        var facts = new SetFacts { OpeningTypes = { Type("windows", "ADC-Window-Casement-Double: 6060", "6060 CMST", 6, 6) } };
+        var f = Check(facts, "operation-codes").Findings.Single();
+        Assert.Equal("ADC-Window-Casement-Double: 6060", f.Target);
+        Assert.Equal("6060 CSMT", f.Suggestion);
     }
 
     [Fact]

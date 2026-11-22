@@ -194,6 +194,21 @@ Every rule has a default. Override any of them in `standards.json` under `manual
 
 A list you give replaces the default list. It doesn't add to it.
 
+### Fixing what the audit finds
+
+Ask Claude: **"Fix the audit."** It works in batches. Each one waits in the pane for your approval, then it re-runs the audit before the next:
+
+1. **Parameters:** adds Tempered and Egress (Yes/No) to doors and windows. They come from `%APPDATA%\AllegroDrafter\AllegroDrafterSharedParameters.txt`, so they work in schedules and tags. Keep that file. Other projects reuse it.
+2. **Type Marks:** each line shows the old mark, the new one, the type's real size and how many are placed, e.g. `376 -> 3080`. Refused unless the size code matches the type's Width/Height.
+   - The audit reads the operation from the family name (Casement → CSMT, Pocket → PKT, Sliding → SLDR, Picture → FIX).
+   - If two types would end up on one mark, or the name doesn't say the operation, it asks you instead of guessing.
+3. **Schedules:** adds the missing columns, then sorts by Type Mark (doors: then Door Swing) with itemizing off, so each row is one size code with a count.
+4. **Tempered:** sets Tempered = Yes on glass doors. Windows flagged near doors or in wet rooms, and every door swing, are your call. Claude lists them and asks.
+5. **Rooms:** deletes unplaced and unenclosed rooms. You see the exact count and names first. Placed rooms can't be deleted this way.
+6. **Templates and tags** for what's left.
+
+Text heights and the wall legend are office template decisions. The audit reports them, but Claude doesn't patch them per project.
+
 ## Troubleshooting
 
 | Symptom | Fix |

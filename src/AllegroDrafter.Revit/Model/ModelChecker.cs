@@ -10,9 +10,14 @@ namespace AllegroDrafter.Revit.Model;
 /// </summary>
 internal static class ModelChecker
 {
-    public static List<string> Check(Document doc, IReadOnlyList<ProposalChange> changes)
+    public static List<string> Check(Document doc, IReadOnlyList<ProposalChange> changes, Core.Checks.AuditSettings? audit = null)
     {
         var errors = new List<string>();
+        audit ??= new Core.Checks.AuditSettings();
+
+        // Type Marks are checked together: collisions depend on the whole batch.
+        var marks = changes.OfType<SetTypeMarkChange>().ToList();
+        if (marks.Count > 0) errors.AddRange(FixEditor.CheckTypeMarks(doc, marks, audit).Select(e => "Type Marks: " + e));
         var newSheets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var placedInProposal = new HashSet<ElementId>();
         var templated = new HashSet<ElementId>();
@@ -241,6 +246,21 @@ internal static class ModelChecker
                     break;
                 }
 
+                case SetTypeMarkChange:
+                    break; // checked as a batch above
+
+                case CreateSharedParameterChange parameter:
+                    errors.AddRange(FixEditor.CheckParameter(doc, parameter).Select(e => prefix + e));
+                    break;
+
+                case ScheduleSortChange sort:
+                    errors.AddRange(FixEditor.CheckSort(doc, sort).Select(e => prefix + e));
+                    break;
+
+                case DeleteRoomsChange rooms:
+                    errors.AddRange(FixEditor.CheckRooms(doc, rooms).Select(e => prefix + e));
+                    break;
+
                 default:
                     errors.Add(prefix + $"Unsupported change type {changes[i].GetType().Name}.");
                     break;
@@ -262,6 +282,8 @@ internal static class ModelChecker
                     => tag with { ExpectedCount = Tagging.Candidates(doc, view, tag.Category, tag.UntaggedOnly).Count },
                 DimensionViewChange dims when Dimensioning.ResolvePlan(doc, dims, out _) is { } plan
                     => dims with { ExpectedStrings = Dimensioning.Plan(Dimensioning.Extract(doc, plan), dims).Strings.Count },
+                SetTypeMarkChange mark => FixEditor.Annotate(doc, mark),
+                DeleteRoomsChange rooms => FixEditor.Annotate(doc, rooms),
                 _ => change,
             })
             .ToList();

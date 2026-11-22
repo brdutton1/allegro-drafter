@@ -26,6 +26,10 @@ public static class ProposalRequestParser
             ToolNames.ProposeNotes => ParseNotes(args),
             ToolNames.ProposeDimensions => ParseDimensions(args),
             ToolNames.ProposeScheduleFields => ParseScheduleFields(args),
+            ToolNames.ProposeTypeMarks => FixRequestParser.TypeMarks(args),
+            ToolNames.ProposeParameters => FixRequestParser.Parameters(args),
+            ToolNames.ProposeScheduleSort => FixRequestParser.ScheduleSort(args),
+            ToolNames.ProposeRoomCleanup => FixRequestParser.RoomCleanup(args),
             _ => throw new ToolArgumentException($"'{toolName}' is not a proposal tool."),
         };
         return new ProposalRequest(title, rationale, changes);

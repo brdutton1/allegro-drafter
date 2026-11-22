@@ -22,7 +22,7 @@ internal static class ProposalApplier
             return ApplyResult.Fail($"This was proposed for \"{proposal.DocumentTitle}\" but the active project is \"{doc.Title}\". Switch to that project and approve again.");
         if (doc.IsReadOnly) return ApplyResult.Fail("The project is read-only.");
 
-        var problems = ModelChecker.Check(doc, proposal.Changes);
+        var problems = ModelChecker.Check(doc, proposal.Changes, profile?.Manual.Audit);
         if (problems.Count > 0)
             return ApplyResult.Fail("The model changed since this was proposed. Nothing was changed:" + Environment.NewLine + string.Join(Environment.NewLine, problems.Select(p => "- " + p)));
 
@@ -34,6 +34,7 @@ internal static class ProposalApplier
         var drawingNotes = new List<string>();
         int sheetCount = 0, placedCount = 0, templateCount = 0, scheduleCount = 0, elementCount = 0, valueCount = 0;
         int tagCount = 0, calloutCount = 0, noteCount = 0, dimensionCount = 0, columnEdits = 0;
+        int typeMarkCount = 0, parameterCount = 0, sortCount = 0, roomsDeleted = 0;
 
         var name = $"Allegro Drafter: {proposal.Title}";
         using var transaction = new Transaction(doc, name.Length > 80 ? name[..80] : name);
@@ -181,6 +182,25 @@ internal static class ProposalApplier
                         break;
                     }
 
+                    case SetTypeMarkChange c:
+                        FixEditor.ApplyTypeMark(doc, c);
+                        typeMarkCount++;
+                        break;
+
+                    case CreateSharedParameterChange c:
+                        FixEditor.ApplyParameter(doc, c);
+                        parameterCount++;
+                        break;
+
+                    case ScheduleSortChange c:
+                        FixEditor.ApplySort(doc, c);
+                        sortCount++;
+                        break;
+
+                    case DeleteRoomsChange c:
+                        roomsDeleted += FixEditor.ApplyRooms(doc, c);
+                        break;
+
                     default:
                         throw new InvalidOperationException($"Unsupported change {change.GetType().Name}.");
                 }
@@ -212,6 +232,10 @@ internal static class ProposalApplier
             if (calloutCount > 0) parts.Add($"{calloutCount} callout(s) added");
             if (noteCount > 0) parts.Add($"{noteCount} note(s) added");
             if (dimensionCount > 0) parts.Add($"{dimensionCount} dimension string(s) drawn");
+            if (typeMarkCount > 0) parts.Add($"Type Mark set on {typeMarkCount} type(s)");
+            if (parameterCount > 0) parts.Add($"{parameterCount} parameter(s) added");
+            if (sortCount > 0) parts.Add($"sorting set on {sortCount} schedule(s)");
+            if (roomsDeleted > 0) parts.Add($"{roomsDeleted} room(s) deleted");
             if (parts.Count == 0) parts.Add("Nothing needed changing");
             var message = string.Join(", ", parts) + ".";
             if (autoPlace.Count > 0) message += " Auto-placed views are roughly arranged; adjust as needed.";

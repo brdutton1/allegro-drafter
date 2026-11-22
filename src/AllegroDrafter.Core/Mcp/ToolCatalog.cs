@@ -38,7 +38,15 @@ public static class ToolCatalog
         9. Never guess door or window marks, room names or finishes the designer hasn't given you a rule for. Ask.
         10. Annotation: tag with propose_tags, dimension plans with propose_dimensions (exterior strings), callouts with propose_callouts, notes with propose_notes. Propose one view or one sheet's worth at a time so the designer can check it.
         11. Coordinates are in feet: model X/Y for plan views, view coordinates for drafting views and legends. Use list_elements / list_rooms to find where things are.
-        12. Before issue, or when asked what's wrong with the set, run audit_set. Report failures first, in plain words. Offer fixes as proposals, never fix silently. A size code is the nominal opening (3050 = 3'-0" W x 5'-0" H). Only use a size code the audit derived from the type's real size, never a guess.
+        12. Before issue, or when asked what's wrong with the set, run audit_set. Report failures first, in plain words. Offer fixes as proposals, never fix silently. A size code is the nominal opening (3050 = 3'-0" W x 5'-0" H). Only use a size code the audit derived from the type's real size (the finding's "suggestion"), never a guess.
+        13. Fixing a set ("make it permit-ready", "fix the audit"): one batch per step, each waiting for approval before the next, re-running audit_set after each:
+            a. propose_parameters: Tempered and Egress (yesno) on doors and windows, if opening-parameters says they're missing.
+            b. propose_type_marks: every type-marks / operation-codes finding that has a suggestion. Findings without one need the designer's call; ask.
+            c. propose_schedule_fields then propose_schedule_sort: required columns, sorted by Type Mark (doors: then Door Swing), itemized off.
+            d. propose_parameter_values: Tempered = Yes on glass doors the tempered check failed. Window tempered/egress warnings and door swings need the designer's call; list them and ask.
+            e. propose_room_cleanup with allUnplaced, only after telling the designer how many rooms it deletes.
+            f. propose_view_templates and propose_tags for what's left.
+           Template problems (text heights, wall legend) are office decisions. Report them, don't patch them per project.
         """;
 
     private const string TitleRationale = """
@@ -244,6 +252,55 @@ public static class ToolCatalog
                       "additionalProperties": false } },
                     "remove": { "type": "array", "items": { "type": "string" } } },
                   "additionalProperties": false } } },
+              "additionalProperties": false }
+            """, ReadOnly: false),
+
+        new ToolDefinition(ToolNames.ProposeTypeMarks, "Propose Type Marks",
+            "Proposes the Type Mark (size code + operation, e.g. \"3050 CSMT\", \"2868\") on door and window types, the value tags and schedules read. Changes every placed instance of the type. Refused unless it's a size code that matches the type's real Width/Height, uses an office operation code, and doesn't duplicate another type's mark. Use the suggestion from audit_set findings. Nothing changes until the designer approves.",
+            $$"""
+            { "type": "object", "required": ["title","types"], "properties": {
+                {{TitleRationale}},
+                "types": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["category","typeName","typeMark"], "properties": {
+                    "category": { "type": "string", "enum": ["doors","windows"] },
+                    "typeName": { "type": "string", "description": "\"Family: Type\" exactly as audit_set or count_elements reports it." },
+                    "typeMark": { "type": "string", "description": "New Type Mark, e.g. \"3080\" or \"6060 CSMT\"." } },
+                  "additionalProperties": false } } },
+              "additionalProperties": false }
+            """, ReadOnly: false),
+
+        new ToolDefinition(ToolNames.ProposeParameters, "Propose project parameters",
+            "Proposes adding instance parameters (e.g. Tempered and Egress, Yes/No) to doors, windows or rooms, from the Allegro Drafter shared parameter file so schedules and tags can use them. Refused if a parameter with that name already exists. Nothing changes until the designer approves.",
+            $$"""
+            { "type": "object", "required": ["title","parameters"], "properties": {
+                {{TitleRationale}},
+                "parameters": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["name","categories"], "properties": {
+                    "name": { "type": "string" },
+                    "type": { "type": "string", "enum": ["yesno","text"], "description": "Default yesno." },
+                    "categories": { "type": "array", "items": { "type": "string", "enum": ["doors","windows","rooms"] } } },
+                  "additionalProperties": false } } },
+              "additionalProperties": false }
+            """, ReadOnly: false),
+
+        new ToolDefinition(ToolNames.ProposeScheduleSort, "Propose schedule sorting",
+            "Proposes the sort/group order of a schedule (replaces the current order), and optionally itemized on/off. Door/window schedules: sortBy [\"Type Mark\", \"Door Swing\"] with itemized false gives one row per size code with a Count. Every sortBy field must already be a column; add missing ones first with propose_schedule_fields and wait for approval. Nothing changes until the designer approves.",
+            $$"""
+            { "type": "object", "required": ["title","schedules"], "properties": {
+                {{TitleRationale}},
+                "schedules": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["schedule","sortBy"], "properties": {
+                    "schedule": { "type": "string", "description": "Exact schedule name from list_schedules." },
+                    "sortBy": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Column names, first sort first." },
+                    "itemized": { "type": "boolean", "description": "Optional. false = one row per group with Count; true = one row per element." } },
+                  "additionalProperties": false } } },
+              "additionalProperties": false }
+            """, ReadOnly: false),
+
+        new ToolDefinition(ToolNames.ProposeRoomCleanup, "Propose room cleanup",
+            "Proposes deleting rooms that aren't placed on a plan or aren't enclosed (leftovers that clutter schedules). Placed rooms are always refused. allUnplaced lists every one, and the designer sees the exact list before approving. Nothing changes until the designer approves.",
+            $$"""
+            { "type": "object", "required": ["title"], "properties": {
+                {{TitleRationale}},
+                "roomIds": { "type": "array", "items": { "type": "integer" }, "description": "Room element ids from audit_set or list_rooms." },
+                "allUnplaced": { "type": "boolean", "description": "Delete every unplaced and unenclosed room instead of a list." } },
               "additionalProperties": false }
             """, ReadOnly: false),
 

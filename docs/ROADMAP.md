@@ -45,7 +45,7 @@
 - [ ] Keynotes
 - [ ] Angled and curved walls in dimensions
 
-## Phase 4: Plan set QA (audit built, not yet run in Revit)
+## Phase 4: Plan set QA (audit runs in Revit 2026; fixes built, not yet run)
 Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-sets.md).
 - [x] `audit_set`: read-only punch list, 16 checks, rules in `manual.audit`, logic in Core with tests
   - size-code Type Marks vs geometry, operation codes, duplicate marks
@@ -55,8 +55,11 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
   - view scales, 1/8" min text and dimensions, view templates
   - rooms, doors without rooms, bedroom egress (R310), tempered candidates (R308.4)
   - hand-typed detail references
-- [ ] First run inside Revit on a copy of a finished job
-- [ ] Fix proposals driven by audit findings: Type Mark corrections (type parameter writes), schedule fields, room cleanup, templates
+- [x] First run inside Revit on a copy of a finished job (2026-11-21: 1.4 s, findings verified; clerestory false alarm fixed)
+- [x] Audit findings carry a ready-to-propose fix (`target` + `suggestion`), operation read from the family name, collisions withheld
+- [x] Fix proposals: `propose_type_marks` (size-code checked against geometry, no duplicate marks), `propose_parameters` (Tempered/Egress from an Allegro shared parameter file), `propose_schedule_sort` (sort/group + itemized), `propose_room_cleanup` (unplaced/unenclosed only)
+- [ ] First run of the fix proposals inside Revit
+- [ ] One-command "make it permit-ready" run that walks the fix batches in order
 - [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area
 - [ ] Dimension strings close to their overall, no gaps
 - [ ] Bearing walls stack between levels

@@ -270,10 +270,10 @@ internal static class FactsReader
         return RevitLookup.CategoryLabel(doc, categoryId);
     }
 
-    private static double? Width(Element e) =>
+    internal static double? Width(Element e) =>
         Length(e, BuiltInParameter.DOOR_WIDTH) ?? Length(e, BuiltInParameter.WINDOW_WIDTH) ?? Length(e, BuiltInParameter.FAMILY_WIDTH_PARAM) ?? Named(e, "Width");
 
-    private static double? Height(Element e) =>
+    internal static double? Height(Element e) =>
         Length(e, BuiltInParameter.DOOR_HEIGHT) ?? Length(e, BuiltInParameter.WINDOW_HEIGHT) ?? Length(e, BuiltInParameter.FAMILY_HEIGHT_PARAM) ?? Named(e, "Height");
 
     private static double? Length(Element e, BuiltInParameter bip)

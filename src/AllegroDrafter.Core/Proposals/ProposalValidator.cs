@@ -123,6 +123,31 @@ public static class ProposalValidator
                     break;
                 }
 
+                case SetTypeMarkChange mark:
+                {
+                    errors.AddRange(TypeMarkErrors(mark, profile.Manual.Audit ?? new Checks.AuditSettings()).Select(e => prefix + e));
+                    if (!scheduleNames.Add($"type|{mark.Category}|{mark.TypeName}"))
+                        errors.Add(prefix + $"\"{mark.TypeName}\" gets a Type Mark more than once in this proposal.");
+                    if (!scheduleNames.Add($"mark|{mark.Category}|{mark.TypeMark}"))
+                        errors.Add(prefix + $"Type Mark \"{mark.TypeMark}\" is given to more than one {mark.Category} type in this proposal. Each type needs its own mark, or the schedule merges them.");
+                    break;
+                }
+
+                case CreateSharedParameterChange parameter:
+                    if (!scheduleNames.Add("param|" + parameter.Name))
+                        errors.Add(prefix + $"Parameter \"{parameter.Name}\" is added more than once in this proposal.");
+                    break;
+
+                case ScheduleSortChange sort:
+                    if (!scheduleNames.Add("sort|" + sort.Schedule))
+                        errors.Add(prefix + $"\"{sort.Schedule}\" is sorted more than once in this proposal.");
+                    break;
+
+                case DeleteRoomsChange:
+                    if (!scheduleNames.Add("deleteRooms"))
+                        errors.Add(prefix + "Room cleanup appears more than once in this proposal. Use one list.");
+                    break;
+
                 case SetParametersChange set:
                     if (!elementIds.Add(set.ElementId))
                         errors.Add(prefix + $"Element {set.ElementId} appears more than once in this proposal. Put all its values in one entry.");
@@ -141,6 +166,29 @@ public static class ProposalValidator
             }
         }
         return errors;
+    }
+
+    /// <summary>A Type Mark must be a size code with an office operation code. Geometry is checked in Revit.</summary>
+    public static IEnumerable<string> TypeMarkErrors(SetTypeMarkChange mark, Checks.AuditSettings audit)
+    {
+        var code = Checks.SizeCode.Parse(mark.TypeMark);
+        if (code is null)
+        {
+            yield return $"\"{mark.TypeMark}\" for \"{mark.TypeName}\" isn't a size code. Use width then height in feet and inches, e.g. \"3050 CSMT\" or \"2868\".";
+            yield break;
+        }
+        var isWindow = mark.Category == "windows";
+        var allowed = isWindow ? audit.WindowOperations : audit.DoorOperations;
+        if (code.Operation is null)
+        {
+            if (isWindow && audit.WindowOperationRequired)
+                yield return $"\"{mark.TypeMark}\" for window type \"{mark.TypeName}\" needs an operation code: {string.Join(", ", allowed)}.";
+        }
+        else if (!allowed.Contains(code.Operation, StringComparer.OrdinalIgnoreCase))
+        {
+            var closest = Names.ClosestMatch(code.Operation, allowed);
+            yield return $"\"{code.Operation}\" in \"{mark.TypeMark}\" isn't an office operation code.{(closest is null ? "" : $" Did you mean {closest}?")} Allowed: {string.Join(", ", allowed)}.";
+        }
     }
 
     /// <summary>

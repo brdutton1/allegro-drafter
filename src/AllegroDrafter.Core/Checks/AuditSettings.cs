@@ -17,6 +17,24 @@ public sealed class AuditSettings
     /// <summary>Windows must carry an operation code. Doors may leave it off.</summary>
     public bool WindowOperationRequired { get; set; } = true;
 
+    /// <summary>
+    /// Words in a window family/type name that give its operation, so the audit can
+    /// suggest a full Type Mark ("ADC-Window-Casement-Full: 3050" suggests "3050 CSMT").
+    /// First match wins. Underscores and dashes count as spaces.
+    /// </summary>
+    public List<OperationKeyword> WindowOperationKeywords { get; set; } = new()
+    {
+        new("CASEMENT", "CSMT"), new("AWNING", "AWN"), new("DOUBLE HUNG", "DH"), new("SINGLE HUNG", "SH"),
+        new("SLID", "SLDR"), new("GLIDER", "SLDR"), new("PICTURE", "FIX"), new("FIXED", "FIX"), new("TRANSOM", "FIX"),
+    };
+
+    /// <summary>Same for doors. Swing doors match nothing and get the size only.</summary>
+    public List<OperationKeyword> DoorOperationKeywords { get; set; } = new()
+    {
+        new("POCKET", "PKT"), new("BARN", "BARN"), new("BIFOLD", "BIFOLD"), new("BI FOLD", "BIFOLD"), new("BYPASS", "BYPASS"),
+        new("SLIDING", "SLDR"), new("PATIO", "SLDR"), new("FRENCH", "FRNCH"), new("GARAGE", "OH"), new("OVERHEAD", "OH"),
+    };
+
     /// <summary>How far type Width/Height may be from the size code before it's flagged.</summary>
     public double TypeMarkToleranceInches { get; set; } = 0.5;
 
@@ -99,3 +117,5 @@ public sealed class AuditSettings
     /// <summary>Most findings listed per check. The total is always reported.</summary>
     public int MaxFindingsPerCheck { get; set; } = 25;
 }
+
+public sealed record OperationKeyword(string Keyword, string Code);

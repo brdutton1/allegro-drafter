@@ -110,7 +110,7 @@ internal sealed class RevitToolHandler : IToolHandler
         var (documentTitle, modelErrors, labeled) = await _dispatcher.InvokeAsync(app =>
         {
             var doc = RequireProject(app);
-            return (doc.Title, ModelChecker.Check(doc, request.Changes), ModelChecker.Annotate(doc, request.Changes));
+            return (doc.Title, ModelChecker.Check(doc, request.Changes, _standards.Current?.Manual.Audit), ModelChecker.Annotate(doc, request.Changes));
         });
         if (modelErrors.Count > 0)
             return ToolCallResult.Errors("Proposal refused before reaching the designer. Fix these and propose again:", modelErrors);

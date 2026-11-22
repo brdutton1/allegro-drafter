@@ -7,7 +7,12 @@ public enum CheckStatus { Pass, Warn, Fail, Skip }
 
 public enum Severity { Warn, Fail }
 
-public sealed record Finding(Severity Severity, string Message, long? ElementId = null);
+/// <param name="Target">What a fix applies to, e.g. the "Family: Type" name for Type Mark findings.</param>
+/// <param name="Suggestion">A value ready to propose, e.g. the Type Mark for propose_type_marks.</param>
+public sealed record Finding(Severity Severity, string Message, long? ElementId = null, string? Target = null, string? Suggestion = null);
+
+/// <summary>The Type Mark the audit would propose for a door or window type, or why it can't.</summary>
+public sealed record MarkSuggestion(string? Mark, string Reason);
 
 public sealed record CheckResult(string Id, string Title, CheckStatus Status, string Summary, int FindingCount, IReadOnlyList<Finding> Findings);
 
@@ -22,7 +27,11 @@ public sealed record AuditReport(AuditSummary Summary, IReadOnlyList<CheckResult
 /// </summary>
 public static class SetAuditor
 {
-    private sealed record Ctx(SetFacts Facts, AuditSettings Settings, IReadOnlyCollection<string> OfficeTemplates);
+    private sealed record Ctx(
+        SetFacts Facts,
+        AuditSettings Settings,
+        IReadOnlyCollection<string> OfficeTemplates,
+        IReadOnlyDictionary<(string Category, string Key), MarkSuggestion> Marks);
 
     private sealed record CheckDef(string Id, string Title, Func<Ctx, CheckResult> Run);
 
@@ -58,7 +67,7 @@ public static class SetAuditor
                 throw new ToolArgumentException($"Unknown check '{string.Join("', '", unknown)}'. Valid checks: {string.Join(", ", CheckIds)}.");
         }
 
-        var ctx = new Ctx(facts, settings, officeTemplates ?? Array.Empty<string>());
+        var ctx = new Ctx(facts, settings, officeTemplates ?? Array.Empty<string>(), SuggestMarks(facts.OpeningTypes, settings));
         var results = Catalog
             .Where(c => only is not { Count: > 0 } || only.Contains(c.Id))
             .Select(c => c.Run(ctx))
@@ -88,29 +97,26 @@ public static class SetAuditor
         foreach (var t in c.Facts.OpeningTypes.OrderBy(t => t.Category).ThenBy(t => t.Key))
         {
             var where = $"{Kind(t.Category)} type \"{t.Key}\" ({t.InstanceCount} placed)";
-            var suggestion = Suggest(t, c.Settings);
+            Finding Fix(string message) => WithSuggestion(c, t, message);
             if (string.IsNullOrWhiteSpace(t.TypeMark))
             {
-                f.Add(new(Severity.Fail, $"{where} has no Type Mark.{suggestion}"));
+                f.Add(Fix($"{where} has no Type Mark."));
                 continue;
             }
             var code = SizeCode.Parse(t.TypeMark);
             if (code is null)
             {
-                f.Add(new(Severity.Fail, $"{where} has Type Mark \"{t.TypeMark}\", which is not a size code.{suggestion}"));
+                f.Add(Fix($"{where} has Type Mark \"{t.TypeMark}\", which is not a size code."));
                 continue;
             }
             if (t.WidthFeet is not double w || t.HeightFeet is not double h)
             {
-                f.Add(new(Severity.Warn, $"{where}: couldn't read the type's Width/Height, so \"{t.TypeMark}\" wasn't checked against the geometry."));
+                f.Add(new(Severity.Warn, $"{where}: couldn't read the type's Width/Height, so \"{t.TypeMark}\" wasn't checked against the geometry.", Target: t.Key));
                 continue;
             }
             var (cw, ch, off) = code.Closest(w, h);
             if (off > tolerance + 1e-9)
-            {
-                f.Add(new(Severity.Fail,
-                    $"{where}: Type Mark \"{t.TypeMark}\" says {SizeCode.FeetInches(cw)} x {SizeCode.FeetInches(ch)}, but the type is {SizeCode.FeetInches(w)} x {SizeCode.FeetInches(h)}. Fix whichever is wrong.{suggestion}"));
-            }
+                f.Add(Fix($"{where}: Type Mark \"{t.TypeMark}\" says {SizeCode.FeetInches(cw)} x {SizeCode.FeetInches(ch)}, but the type doesn't match. Fix whichever is wrong."));
         }
         return Make(c, "type-marks", f, $"{c.Facts.OpeningTypes.Count} door and window types. Every Type Mark is a size code that matches its type.");
     }
@@ -127,13 +133,13 @@ public static class SetAuditor
             if (code.Operation is null)
             {
                 if (isWindow && c.Settings.WindowOperationRequired)
-                    f.Add(new(Severity.Fail, $"Window type \"{t.Key}\": Type Mark \"{t.TypeMark}\" has no operation code. Add one of {string.Join(", ", allowed)}."));
+                    f.Add(WithSuggestion(c, t, $"Window type \"{t.Key}\": Type Mark \"{t.TypeMark}\" has no operation code. Add one of {string.Join(", ", allowed)}."));
                 continue;
             }
             if (!allowed.Contains(code.Operation, StringComparer.OrdinalIgnoreCase))
             {
                 var closest = Names.ClosestMatch(code.Operation, allowed);
-                f.Add(new(Severity.Fail,
+                f.Add(WithSuggestion(c, t,
                     $"{Kind(t.Category)} type \"{t.Key}\": \"{code.Operation}\" in \"{t.TypeMark}\" is not an office operation code.{(closest is null ? "" : $" Did you mean {closest}?")} Allowed: {string.Join(", ", allowed)}."));
             }
         }
@@ -528,14 +534,79 @@ public static class SetAuditor
     private static CheckResult Skip(string id, string why) =>
         new(id, Catalog.First(x => x.Id == id).Title, CheckStatus.Skip, why, 0, Array.Empty<Finding>());
 
-    /// <summary>" Should read like \"3050 CSMT\"." from the type's real size.</summary>
-    private static string Suggest(OpeningTypeFact t, AuditSettings s)
+    /// <summary>A failing Type Mark finding, with the fix attached when there is one.</summary>
+    private static Finding WithSuggestion(Ctx c, OpeningTypeFact t, string message)
     {
-        if (t.WidthFeet is not double w || t.HeightFeet is not double h) return "";
-        var code = $"{CodePart(w)}{CodePart(h)}";
-        return t.Category == "windows"
-            ? $" The type is {SizeCode.FeetInches(w)} x {SizeCode.FeetInches(h)}: \"{code}\" plus its operation, e.g. \"{code} {s.WindowOperations.FirstOrDefault() ?? "OPER"}\"."
-            : $" The type is {SizeCode.FeetInches(w)} x {SizeCode.FeetInches(h)}, so it should be \"{code}\".";
+        c.Marks.TryGetValue((t.Category, t.Key), out var s);
+        return new Finding(Severity.Fail, s is null ? message : $"{message} {s.Reason}", Target: t.Key, Suggestion: s?.Mark);
+    }
+
+    /// <summary>
+    /// The Type Mark each failing door/window type should get: the size from its real
+    /// Width/Height, plus an operation code (kept if valid, corrected if close, else read
+    /// from the family name). Suggestions that would collide with another type's mark are
+    /// withheld, because two types on one mark merge in the schedule.
+    /// </summary>
+    public static IReadOnlyDictionary<(string Category, string Key), MarkSuggestion> SuggestMarks(IEnumerable<OpeningTypeFact> types, AuditSettings s)
+    {
+        var result = new Dictionary<(string, string), MarkSuggestion>();
+        var list = types.ToList();
+        foreach (var t in list)
+        {
+            if (t.WidthFeet is not double w || t.HeightFeet is not double h) continue;
+            var isWindow = t.Category == "windows";
+            var allowed = isWindow ? s.WindowOperations : s.DoorOperations;
+            var code = SizeCode.Parse(t.TypeMark);
+            var sizeOk = code is not null && code.Closest(w, h).OffInches <= s.TypeMarkToleranceInches + 1e-9;
+            var opOk = code?.Operation is null
+                ? !(isWindow && s.WindowOperationRequired)
+                : allowed.Contains(code.Operation, StringComparer.OrdinalIgnoreCase);
+            if (code is not null && sizeOk && opOk) continue; // nothing to fix
+
+            var size = $"{CodePart(w)}{CodePart(h)}";
+            var real = $"{SizeCode.FeetInches(w)} x {SizeCode.FeetInches(h)}";
+            string? op = null;
+            if (code?.Operation is { } existing)
+                op = allowed.FirstOrDefault(a => string.Equals(a, existing, StringComparison.OrdinalIgnoreCase)) ?? Names.ClosestMatch(existing, allowed);
+            op ??= InferOperation(t, isWindow ? s.WindowOperationKeywords : s.DoorOperationKeywords, allowed);
+
+            if (isWindow && s.WindowOperationRequired && op is null)
+            {
+                result[(t.Category, t.Key)] = new(null,
+                    $"The type is {real}: \"{size}\" plus its operation ({string.Join(", ", allowed)}). Couldn't tell the operation from the family name, so ask.");
+                continue;
+            }
+            var mark = op is null ? size : $"{size} {op}";
+            result[(t.Category, t.Key)] = new(mark, $"The type is {real}, so it should be \"{mark}\".");
+        }
+
+        // Withhold suggestions that would put two types on one mark.
+        var finals = list.Select(t => (t, Mark: result.TryGetValue((t.Category, t.Key), out var m) && m.Mark is not null ? m.Mark : t.TypeMark))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Mark))
+            .GroupBy(x => (x.t.Category, Mark: Normalize(x.Mark!)))
+            .Where(g => g.Count() > 1);
+        foreach (var group in finals)
+        {
+            foreach (var (t, mark) in group)
+            {
+                if (!result.TryGetValue((t.Category, t.Key), out var m) || m.Mark is null) continue;
+                var others = string.Join(", ", group.Where(x => x.t.Key != t.Key).Select(x => $"\"{x.t.Key}\""));
+                result[(t.Category, t.Key)] = new(null,
+                    $"Its size reads \"{mark}\", but that would match {others}, and the schedule would merge them. Pick a different operation code or confirm the size, then propose it.");
+            }
+        }
+        return result;
+    }
+
+    private static string? InferOperation(OpeningTypeFact t, IEnumerable<OperationKeyword> keywords, IReadOnlyCollection<string> allowed)
+    {
+        var name = Regex.Replace(t.Key.ToUpperInvariant().Replace('_', ' ').Replace('-', ' '), @"\s+", " ");
+        foreach (var k in keywords)
+        {
+            if (name.Contains(k.Keyword.ToUpperInvariant(), StringComparison.Ordinal) && allowed.Contains(k.Code, StringComparer.OrdinalIgnoreCase))
+                return k.Code;
+        }
+        return null;
     }
 
     private static string CodePart(double feet)

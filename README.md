@@ -39,6 +39,10 @@ Phase 1 (sheet builder) runs in Revit 2026. Phases 2 and 3 (schedules, tags, dim
 | `audit_set` | Read-only punch list before issue: size codes, schedules, tags, wall legend, sheets, scales, text height, rooms, templates, egress, tempered, typed references, cover sheet |
 | `propose_schedules` | Door, window, room and finish schedules from office schedules, placed on sheets |
 | `propose_schedule_fields` | Add, remove and position schedule columns (e.g. Mark on the door schedule) |
+| `propose_schedule_sort` | Sort/group a schedule (Type Mark, then swing) and turn itemizing on or off |
+| `propose_type_marks` | Size-code Type Marks on door and window types (`376` -> `3080`), checked against the real size |
+| `propose_parameters` | Add Yes/No or text instance parameters (Tempered, Egress) from the Allegro shared parameter file |
+| `propose_room_cleanup` | Delete unplaced and unenclosed rooms (placed rooms are refused) |
 | `propose_parameter_values` | Marks, room names/numbers, finishes (finish codes enforced) |
 | `propose_tags` | Tag untagged doors, windows, rooms, walls in a view with office tag types |
 | `propose_dimensions` | Exterior plan dimension strings: openings, wall jogs, overall |

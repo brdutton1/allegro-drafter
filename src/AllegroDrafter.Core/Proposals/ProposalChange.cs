@@ -17,6 +17,10 @@ namespace AllegroDrafter.Core.Proposals;
 [JsonDerivedType(typeof(TextNoteChange), "textNote")]
 [JsonDerivedType(typeof(DimensionViewChange), "dimensionView")]
 [JsonDerivedType(typeof(ScheduleFieldsChange), "scheduleFields")]
+[JsonDerivedType(typeof(SetTypeMarkChange), "setTypeMark")]
+[JsonDerivedType(typeof(CreateSharedParameterChange), "createSharedParameter")]
+[JsonDerivedType(typeof(ScheduleSortChange), "scheduleSort")]
+[JsonDerivedType(typeof(DeleteRoomsChange), "deleteRooms")]
 public abstract record ProposalChange
 {
     /// <summary>Plain-English line shown in the approval pane.</summary>
