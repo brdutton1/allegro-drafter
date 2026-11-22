@@ -1,21 +1,21 @@
 <#
 .SYNOPSIS
-  Registers Allegro Drafter in Claude Desktop's config (claude_desktop_config.json).
-  Keeps every other setting, backs the file up first, and handles both the
-  regular installer and the Microsoft Store version of Claude Desktop.
+  Registers Allegro Drafter with Claude.
+  -ClaudeCode: registers it in Claude Code for every folder (recommended).
+  Default: writes Claude Desktop's config (claude_desktop_config.json), keeping
+  every other setting and backing the file up first. Handles both the regular
+  installer and the Microsoft Store version of Claude Desktop.
 
 .EXAMPLE
+  .\scripts\connect-claude.ps1 -ClaudeCode
   .\scripts\connect-claude.ps1
 #>
 param(
-    [string] $Year = ''
+    [string] $Year = '',
+    [switch] $ClaudeCode
 )
 
 $ErrorActionPreference = 'Stop'
-
-if (Get-Process -Name 'Claude' -ErrorAction SilentlyContinue) {
-    throw 'Quit Claude Desktop first (right-click its tray icon > Quit). It can overwrite the config while running.'
-}
 
 # Find the installed bridge (newest Revit year first, unless one is given).
 $years = if ($Year) { @($Year) } else { @('2026', '2025') }
@@ -25,6 +25,37 @@ foreach ($y in $years) {
     if (Test-Path $candidate) { $bridge = $candidate; break }
 }
 if (-not $bridge) { throw 'AllegroDrafter.Bridge.exe not found. Run .\scripts\install.ps1 first.' }
+
+if ($ClaudeCode) {
+    if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+        throw @'
+Claude Code is not installed. Install it with:
+  irm https://claude.ai/install.ps1 | iex
+Then close PowerShell, open a new one, run "claude" once to sign in, and run this again.
+'@
+    }
+    # Remove any earlier entry (any scope) so a stale path can't shadow the new one.
+    # "Not found" is expected here, so don't let it stop the script.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    foreach ($scope in @('local', 'project', 'user')) {
+        & claude mcp remove --scope $scope allegro-drafter *> $null
+    }
+    $ErrorActionPreference = $previous
+    # User scope = available whatever folder Claude Code is started in.
+    & claude mcp add --scope user allegro-drafter -- $bridge
+    if ($LASTEXITCODE -ne 0) { throw 'claude mcp add failed. See the message above.' }
+    Write-Host ''
+    & claude mcp list
+    Write-Host ''
+    Write-Host "Allegro Drafter registered in Claude Code -> $bridge"
+    Write-Host 'Open Revit with your project, run "claude" in PowerShell, and ask away.'
+    return
+}
+
+if (Get-Process -Name 'Claude' -ErrorAction SilentlyContinue | Where-Object { $_.Path -notlike '*\.local\bin\*' }) {
+    throw 'Quit Claude Desktop first (right-click its tray icon > Quit). It can overwrite the config while running.'
+}
 
 # Claude Desktop keeps its config in one of two places depending on how it was installed.
 $configs = @(Join-Path $env:APPDATA 'Claude\claude_desktop_config.json')

@@ -31,10 +31,10 @@ public sealed class StatusCommand : IExternalCommand
                 $"Pending proposals: {app.Proposals.PendingCount}\n" +
                 $"Audit log: {app.Paths.AuditDir}",
             ExpandedContent =
+                "Connect Claude Code (recommended), in PowerShell:\n" +
+                $"  claude mcp add --scope user allegro-drafter -- \"{bridge}\"\n\n" +
                 "Connect Claude Desktop: Settings > Developer > Edit Config, add under \"mcpServers\":\n" +
                 $"  \"allegro-drafter\": {{ \"command\": \"{bridge.Replace("\\", "\\\\")}\" }}\n\n" +
-                "Connect Claude Code:\n" +
-                $"  claude mcp add allegro-drafter -- \"{bridge}\"\n\n" +
                 $"The bridge reads the port and token from {app.Paths.McpConfigFile}. Keep that file private.",
         };
         dialog.Show();

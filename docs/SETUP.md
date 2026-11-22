@@ -6,7 +6,7 @@ About 20 minutes the first time. Do it on the Windows machine that runs Revit.
 
 - **.NET 8 SDK**: `winget install Microsoft.DotNet.SDK.8`, or download "SDK 8.0, Windows x64" from https://dotnet.microsoft.com/download/dotnet/8.0. Revit only installs the runtime, which can't build. Open a new PowerShell after installing.
 - **Git**: https://git-scm.com/download/win
-- **Claude Desktop** (https://claude.ai/download) or Claude Code
+- **Claude Code** (recommended): `irm https://claude.ai/install.ps1 | iex` in PowerShell, then open a new PowerShell and run `claude` once to sign in. Claude Desktop also works if its Developer settings are available to you.
 
 ## 2. Build and install the add-in
 
@@ -66,25 +66,29 @@ Hand-edited. Re-exporting never overwrites it.
 
 ## 5. Connect Claude
 
-**Claude Desktop (easiest):** quit Claude Desktop, then run `.\scripts\connect-claude.ps1`. It finds the config file, backs it up and adds the entry.
-
-**Claude Desktop (by hand):** Settings > Developer > Edit Config. Inside `"mcpServers"` add the line `install.ps1` printed, for example:
-
-```json
-{
-  "mcpServers": {
-    "allegro-drafter": { "command": "C:\\Users\\YOU\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2025\\AllegroDrafter\\AllegroDrafter.Bridge.exe" }
-  }
-}
-```
-
-Restart Claude Desktop. The Allegro Drafter tools show up in the tools menu.
-
-**Claude Code:**
+**Claude Code (recommended):**
 
 ```powershell
-claude mcp add allegro-drafter -- "C:\Users\YOU\AppData\Roaming\Autodesk\Revit\Addins\2025\AllegroDrafter\AllegroDrafter.Bridge.exe"
+.\scripts\connect-claude.ps1 -ClaudeCode
 ```
+
+That registers Allegro Drafter for every folder (`--scope user`). By hand it's:
+
+```powershell
+claude mcp add --scope user allegro-drafter -- "C:\Users\YOU\AppData\Roaming\Autodesk\Revit\Addins\2026\AllegroDrafter\AllegroDrafter.Bridge.exe"
+```
+
+Without `--scope user` the tools only show up when Claude Code is started in that one folder.
+
+Check it with `claude mcp list`. Then, with Revit open, run `claude` in PowerShell and start asking.
+
+**Claude Desktop (if you have Settings > Developer):** quit Claude Desktop, then run `.\scripts\connect-claude.ps1`. It finds the config file, backs it up and adds the entry. By hand: Settings > Developer > Edit Config, and inside `"mcpServers"` add:
+
+```json
+"allegro-drafter": { "command": "C:\\Users\\YOU\\AppData\\Roaming\\Autodesk\\Revit\\Addins\\2026\\AllegroDrafter\\AllegroDrafter.Bridge.exe" }
+```
+
+Fully quit and reopen Claude Desktop, then use a new chat in the **Chat** tab.
 
 No API key goes into Revit. Claude handles that.
 
@@ -102,6 +106,8 @@ Then in Revit, open the **Approvals** pane, read the changes, and Approve or Rej
 |---|---|
 | Status says server NOT running, port in use | Another Revit is open with the add-in. Close it, or change `port` in `%APPDATA%\AllegroDrafter\mcp.json` and restart Revit. |
 | Status says "Access is denied" on the port | Run once in an admin PowerShell: `netsh http add urlacl url=http://localhost:48884/ user=$env:USERNAME` |
+| Claude Desktop has no Developer tab, or never starts allegro-drafter | Use Claude Code instead (step 5). |
+| Claude Code only sees the tools in one folder | It was added without `--scope user`. Run `.\\scripts\\connect-claude.ps1 -ClaudeCode`. |
 | Claude says "Revit is not running" | Open Revit with a project. The bridge reconnects on the next call. |
 | Claude says "Revit is busy" | A dialog or edit mode is open in Revit. Finish it. |
 | Every proposal refused: "No office standards profile" | Do step 4. |

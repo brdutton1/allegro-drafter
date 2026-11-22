@@ -39,7 +39,7 @@ Phase 1 (skeleton + sheet builder) is built and compiles against the real Revit 
 
 ## Get started
 
-See [docs/SETUP.md](docs/SETUP.md). Short version, on the Windows machine with Revit:
+Claude Code is the recommended client. See [docs/SETUP.md](docs/SETUP.md). Short version, on the Windows machine with Revit:
 
 ```powershell
 git clone https://github.com/brdutton1/allegro-drafter
