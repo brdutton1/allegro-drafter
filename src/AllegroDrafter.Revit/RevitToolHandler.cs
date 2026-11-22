@@ -44,6 +44,21 @@ internal sealed class RevitToolHandler : IToolHandler
                     var unplaced = Args.OptionalBool(args, "unplacedOnly", "arguments");
                     return await Read((_, doc) => ModelReader.Views(doc, viewType, unplaced));
                 }
+                case ToolNames.ListSchedules: return await Read((_, doc) => ScheduleReader.Schedules(doc));
+                case ToolNames.ListElements:
+                {
+                    var category = Args.RequiredString(args, "category", "arguments");
+                    var level = Args.OptionalString(args, "level", "arguments");
+                    var parameters = Args.OptionalStringArray(args, "parameters", "arguments");
+                    var withList = Args.OptionalBool(args, "includeParameterList", "arguments");
+                    var finishParameters = _standards.Current?.Manual.FinishParameters ?? new Core.Standards.ManualSettings().FinishParameters;
+                    return await Read((_, doc) => ScheduleReader.Elements(doc, category, level, parameters, withList, finishParameters));
+                }
+                case ToolNames.ReadLegend:
+                {
+                    var legend = Args.OptionalString(args, "name", "arguments");
+                    return await Read((_, doc) => ScheduleReader.ReadLegend(doc, legend));
+                }
                 case ToolNames.ListRooms:
                 {
                     var level = Args.OptionalString(args, "level", "arguments");
@@ -79,13 +94,14 @@ internal sealed class RevitToolHandler : IToolHandler
         if (standardsErrors.Count > 0)
             return ToolCallResult.Errors("Proposal refused before reaching the designer. Fix these and propose again:", standardsErrors);
 
-        var (documentTitle, modelErrors) = await _dispatcher.InvokeAsync(app =>
+        var (documentTitle, modelErrors, labeled) = await _dispatcher.InvokeAsync(app =>
         {
             var doc = RequireProject(app);
-            return (doc.Title, ModelChecker.Check(doc, request.Changes));
+            return (doc.Title, ModelChecker.Check(doc, request.Changes), ModelChecker.WithModelLabels(doc, request.Changes));
         });
         if (modelErrors.Count > 0)
             return ToolCallResult.Errors("Proposal refused before reaching the designer. Fix these and propose again:", modelErrors);
+        request = request with { Changes = labeled };
 
         var proposal = _proposals.Add(documentTitle, request);
         _onNewProposal();

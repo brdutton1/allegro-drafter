@@ -135,7 +135,7 @@ internal static class ModelReader
             .Select(r => new
             {
                 number = r.Number,
-                name = r.Name,
+                name = RevitLookup.RoomName(r),
                 level = r.Level?.Name,
                 areaSqFt = Math.Round(r.Area, 1),
                 state = r.Location is null ? "unplaced" : r.Area <= 0 ? "not enclosed" : null,

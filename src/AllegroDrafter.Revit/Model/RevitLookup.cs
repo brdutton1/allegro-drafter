@@ -1,5 +1,6 @@
 using AllegroDrafter.Core;
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Architecture;
 
 namespace AllegroDrafter.Revit.Model;
 
@@ -106,5 +107,44 @@ internal static class RevitLookup
             if (sheets.TryGetValue(instance.OwnerViewId, out var number)) Add(instance.ScheduleId, number);
         }
         return map;
+    }
+
+    public static ViewSchedule? FindSchedule(Document doc, string name) =>
+        new FilteredElementCollector(doc).OfClass(typeof(ViewSchedule)).Cast<ViewSchedule>()
+            .FirstOrDefault(s => !s.IsTemplate && s.Name == name);
+
+    public static bool ScheduleNameTaken(Document doc, string name) =>
+        new FilteredElementCollector(doc).OfClass(typeof(ViewSchedule)).Cast<ViewSchedule>()
+            .Any(s => string.Equals(s.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    public static string RoomName(Room room) => room.get_Parameter(BuiltInParameter.ROOM_NAME)?.AsString() ?? "";
+
+    /// <summary>What the designer sees in the approval pane, e.g. "Door 101 [Single-Flush: 36" x 80"]".</summary>
+    public static string ElementLabel(Element element)
+    {
+        if (element is Room room) return $"Room {room.Number} {RoomName(room)}".TrimEnd();
+
+        var kind = element.Category?.BuiltInCategory switch
+        {
+            BuiltInCategory.OST_Doors => "Door",
+            BuiltInCategory.OST_Windows => "Window",
+            _ => element.Category?.Name ?? "Element",
+        };
+        var mark = element.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString();
+        var type = element.Document.GetElement(element.GetTypeId()) is ElementType t ? $" [{TypeName(t)}]" : "";
+        return $"{kind} {(string.IsNullOrWhiteSpace(mark) ? $"(no mark, id {element.Id.Value})" : mark)}{type}";
+    }
+
+    public static string CategoryLabel(Document doc, ElementId categoryId)
+    {
+        if (categoryId == ElementId.InvalidElementId) return "Multi-Category";
+        try
+        {
+            return Category.GetCategory(doc, categoryId)?.Name ?? "Unknown";
+        }
+        catch (Autodesk.Revit.Exceptions.ArgumentException)
+        {
+            return "Unknown";
+        }
     }
 }

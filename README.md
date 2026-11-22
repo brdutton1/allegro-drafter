@@ -27,7 +27,7 @@ Three rules hold the whole thing together:
 
 ## Status
 
-Phase 1 (skeleton + sheet builder) is built and compiles against the real Revit 2025 and 2026 APIs. It has **not been run inside Revit yet**. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Phase 1 (sheet builder) runs in Revit 2026. Phase 2 (schedules) is built and compiles against the real Revit 2025 and 2026 APIs. It has **not been run inside Revit yet**. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Tool | What it does |
 |---|---|
@@ -35,6 +35,9 @@ Phase 1 (skeleton + sheet builder) is built and compiles against the real Revit 
 | `get_project_info`, `list_levels`, `list_views`, `list_sheets`, `list_rooms`, `count_elements` | Read the model |
 | `propose_sheet_set` | New sheets plus the views on them, one batch |
 | `propose_sheets`, `propose_place_views`, `propose_view_templates` | Smaller batches |
+| `list_schedules`, `list_elements`, `read_legend` | Read schedules, doors/windows/rooms with parameters, legend text |
+| `propose_schedules` | Door, window, room and finish schedules from office schedules, placed on sheets |
+| `propose_parameter_values` | Marks, room names/numbers, finishes (finish codes enforced) |
 | `list_proposals`, `get_proposal` | Check what you approved or rejected |
 
 ## Get started

@@ -15,14 +15,19 @@
 - [x] Proposals: create sheets, place views/legends/schedules (auto-arrange or exact), apply view templates
 - [x] Standards and model validation, one-transaction apply, double-click safe, retry on failure
 - [x] Audit log
-- [x] 82 automated tests on Core; add-in compiles against Revit 2025 and 2026 APIs
+- [x] Automated tests on Core (113 after Phase 2); add-in compiles against Revit 2025 and 2026 APIs
 - [ ] First run inside Revit on a stripped copy of a finished job
 - [ ] Ribbon icons
 - [ ] Highlight affected elements before approving (preview)
 - [ ] Workshared models: check element ownership before proposing
 
-## Phase 2: Schedules + details
-- [ ] Create door / window / room / framing schedules by duplicating template schedules
+## Phase 2: Schedules + details (schedules built, not yet run in Revit)
+- [x] list_schedules, list_elements (doors/windows/rooms with parameters), read_legend
+- [x] Create schedules by copying office schedules, or category + schedule view template, and place them on sheets
+- [x] Set door/window/room instance parameters (marks, names, numbers, finishes). Type parameters refused.
+- [x] Finish codes from the legend enforced on finish parameters
+- [ ] First run inside Revit on a copy of a finished job
+- [ ] Framing schedules
 - [ ] Place drafting-view details based on wall, roof and foundation types in the model
 - [ ] Detail callouts and sheet references
 

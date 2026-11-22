@@ -9,17 +9,26 @@ public static class ToolNames
     public const string ListSheets = "list_sheets";
     public const string ListRooms = "list_rooms";
     public const string CountElements = "count_elements";
+    public const string ListSchedules = "list_schedules";
+    public const string ListElements = "list_elements";
+    public const string ReadLegend = "read_legend";
 
     public const string ProposeSheets = "propose_sheets";
     public const string ProposeSheetSet = "propose_sheet_set";
     public const string ProposePlaceViews = "propose_place_views";
     public const string ProposeViewTemplates = "propose_view_templates";
+    public const string ProposeSchedules = "propose_schedules";
+    public const string ProposeParameterValues = "propose_parameter_values";
 
     public const string ListProposals = "list_proposals";
     public const string GetProposal = "get_proposal";
 
+    /// <summary>Categories Claude may schedule and edit in this phase.</summary>
+    public static readonly IReadOnlyList<string> EditableCategories = new[] { "doors", "windows", "rooms" };
+
     public static readonly IReadOnlySet<string> ProposalTools = new HashSet<string>
     {
         ProposeSheets, ProposeSheetSet, ProposePlaceViews, ProposeViewTemplates,
+        ProposeSchedules, ProposeParameterValues,
     };
 }

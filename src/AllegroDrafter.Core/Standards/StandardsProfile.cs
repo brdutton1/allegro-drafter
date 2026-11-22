@@ -21,6 +21,9 @@ public sealed class StandardsProfile
     public List<string> TextNoteTypes { get; set; } = new();
     public List<string> DimensionTypes { get; set; } = new();
     public List<string> Schedules { get; set; } = new();
+
+    /// <summary>Schedule name to the category it lists (e.g. "DOOR SCHEDULE" -> "Doors").</summary>
+    public Dictionary<string, string> ScheduleCategories { get; set; } = new();
     public List<string> DraftingViews { get; set; } = new();
     public List<string> Legends { get; set; } = new();
     public List<SheetInfo> Sheets { get; set; } = new();
@@ -59,7 +62,18 @@ public sealed class ManualSettings
 
     /// <summary>Free-form office rules the AI should follow (numbering, view naming, etc.).</summary>
     public List<string> Rules { get; set; } = new();
+
+    /// <summary>
+    /// The finish codes from the office finish legend (e.g. "T1" = "PORCELAIN TILE").
+    /// When this list has entries, finish parameters can only be set to these codes.
+    /// </summary>
+    public List<FinishCode> FinishCodes { get; set; } = new();
+
+    /// <summary>Room parameters that hold finish codes. Add custom shared parameters here.</summary>
+    public List<string> FinishParameters { get; set; } = new() { "Floor Finish", "Base Finish", "Wall Finish", "Ceiling Finish" };
 }
+
+public sealed record FinishCode(string Code, string Description);
 
 public sealed class SheetInsets
 {

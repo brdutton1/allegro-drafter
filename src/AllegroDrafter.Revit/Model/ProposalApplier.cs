@@ -30,7 +30,8 @@ internal static class ProposalApplier
         var created = new List<long>();
         var sheets = new Dictionary<string, ViewSheet>(StringComparer.OrdinalIgnoreCase);
         var autoPlace = new Dictionary<ElementId, (ViewSheet Sheet, List<SheetLayout.Placed> Items)>();
-        int sheetCount = 0, placedCount = 0, templateCount = 0;
+        var schedules = new Dictionary<string, ViewSchedule>(StringComparer.OrdinalIgnoreCase);
+        int sheetCount = 0, placedCount = 0, templateCount = 0, scheduleCount = 0, elementCount = 0, valueCount = 0;
 
         var name = $"Allegro Drafter: {proposal.Title}";
         using var transaction = new Transaction(doc, name.Length > 80 ? name[..80] : name);
@@ -60,8 +61,9 @@ internal static class ProposalApplier
                     {
                         var sheet = sheets.TryGetValue(c.SheetNumber, out var s) ? s : RevitLookup.FindSheet(doc, c.SheetNumber)
                             ?? throw new InvalidOperationException($"Sheet {c.SheetNumber} not found.");
-                        var view = RevitLookup.ResolveView(doc, c.ViewName, c.ViewType, out var error)
-                            ?? throw new InvalidOperationException(error);
+                        View view = schedules.TryGetValue(c.ViewName, out var newSchedule)
+                            ? newSchedule
+                            : RevitLookup.ResolveView(doc, c.ViewName, c.ViewType, out var error) ?? throw new InvalidOperationException(error);
                         var point = c.HasPosition ? new XYZ(c.XFeet!.Value, c.YFeet!.Value, 0) : XYZ.Zero;
 
                         ElementId placedId;
@@ -98,6 +100,41 @@ internal static class ProposalApplier
                         break;
                     }
 
+                    case CreateScheduleChange c:
+                    {
+                        ViewSchedule schedule;
+                        if (c.IsCopy)
+                        {
+                            var source = RevitLookup.FindSchedule(doc, c.SourceSchedule!)
+                                ?? throw new InvalidOperationException($"Schedule \"{c.SourceSchedule}\" not found.");
+                            schedule = (ViewSchedule)doc.GetElement(source.Duplicate(ViewDuplicateOption.Duplicate));
+                        }
+                        else
+                        {
+                            var template = RevitLookup.FindTemplate(doc, c.TemplateName!)
+                                ?? throw new InvalidOperationException($"Template '{c.TemplateName}' not found.");
+                            schedule = ViewSchedule.CreateSchedule(doc, new ElementId(ParameterWriter.Categories[c.Category!]));
+                            if (!schedule.IsValidViewTemplate(template.Id))
+                                throw new InvalidOperationException($"Template '{template.Name}' doesn't fit a {c.Category} schedule.");
+                            schedule.ViewTemplateId = template.Id;
+                        }
+                        schedule.Name = c.Name;
+                        schedules[c.Name] = schedule;
+                        created.Add(schedule.Id.Value);
+                        scheduleCount++;
+                        break;
+                    }
+
+                    case SetParametersChange c:
+                    {
+                        var element = doc.GetElement(new ElementId(c.ElementId))
+                            ?? throw new InvalidOperationException($"Element {c.ElementId} not found.");
+                        foreach (var value in c.Values) ParameterWriter.Write(element, value.Name, value.Value);
+                        elementCount++;
+                        valueCount += c.Values.Count;
+                        break;
+                    }
+
                     default:
                         throw new InvalidOperationException($"Unsupported change {change.GetType().Name}.");
                 }
@@ -122,6 +159,8 @@ internal static class ProposalApplier
             if (sheetCount > 0) parts.Add($"{sheetCount} sheet(s) created");
             if (placedCount > 0) parts.Add($"{placedCount} view(s) placed");
             if (templateCount > 0) parts.Add($"{templateCount} view template(s) applied");
+            if (scheduleCount > 0) parts.Add($"{scheduleCount} schedule(s) created");
+            if (elementCount > 0) parts.Add($"{valueCount} value(s) set on {elementCount} element(s)");
             var message = string.Join(", ", parts) + ".";
             if (autoPlace.Count > 0) message += " Auto-placed views are roughly arranged; adjust as needed.";
             if (overflowNotes.Count > 0) message += " Check: " + string.Join("; ", overflowNotes) + ".";

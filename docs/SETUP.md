@@ -64,6 +64,23 @@ Hand-edited. Re-exporting never overwrites it.
 
 `drawingAreaInsetsInches.right` should clear your title block strip, so auto-placed views don't land on it.
 
+### Finish codes
+
+Add your finish legend's codes so Claude can't invent finishes:
+
+```json
+"finishCodes": [
+  { "code": "T1", "description": "PORCELAIN TILE" },
+  { "code": "P1", "description": "PAINT, EGGSHELL" },
+  { "code": "CPT1", "description": "CARPET" }
+],
+"finishParameters": ["Floor Finish", "Base Finish", "Wall Finish", "Ceiling Finish"]
+```
+
+Easiest: ask Claude "Read the finish legend with read_legend and draft finishCodes for standards.json. Show me first." Check it, then let it write the file.
+
+Once `finishCodes` has entries, any finish parameter can only take those codes. Combined values like `P1/T1` are fine. If your template uses custom finish parameters (e.g. "FLOOR FIN"), list them in `finishParameters`.
+
 ## 5. Connect Claude
 
 **Claude Code (recommended):**
@@ -99,6 +116,17 @@ Use a **copy** of a finished job with its sheets deleted. Ask Claude:
 > Read the standards and this model. Propose the CD sheet set for a new home using our typical sheet index, with the floor plans, elevations and sections placed.
 
 Then in Revit, open the **Approvals** pane, read the changes, and Approve or Reject. Compare the result to the issued set.
+
+## Schedules (Phase 2)
+
+On a Save As copy of a finished job, with Revit open, ask Claude Code:
+
+1. "Read the finish legend and draft finishCodes for standards.json. Show me first."
+2. "Check which door, window, room and finish schedules exist. Create any that are missing from our office schedules and place them on the schedule sheet."
+3. "Number the doors and windows by level and room" (give it your rule).
+4. "Fill room finishes by room type using our finish codes." Up to 50 rooms per proposal.
+
+Approve or reject each batch in the Revit pane.
 
 ## Troubleshooting
 

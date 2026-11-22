@@ -56,6 +56,10 @@ internal static class StandardsExporter
             Schedules = nonTemplates.OfType<ViewSchedule>()
                 .Where(s => !s.IsTitleblockRevisionSchedule && !s.IsInternalKeynoteSchedule)
                 .Select(s => s.Name).Distinct().OrderBy(n => n).ToList(),
+            ScheduleCategories = nonTemplates.OfType<ViewSchedule>()
+                .Where(s => !s.IsTitleblockRevisionSchedule && !s.IsInternalKeynoteSchedule)
+                .GroupBy(s => s.Name)
+                .ToDictionary(g => g.Key, g => RevitLookup.CategoryLabel(doc, g.First().Definition.CategoryId)),
             DraftingViews = NamesOf(nonTemplates, ViewType.DraftingView),
             Legends = NamesOf(nonTemplates, ViewType.Legend),
             Sheets = new FilteredElementCollector(doc).OfClass(typeof(ViewSheet)).Cast<ViewSheet>()
