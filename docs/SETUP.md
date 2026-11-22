@@ -66,7 +66,9 @@ Hand-edited. Re-exporting never overwrites it.
 
 ## 5. Connect Claude
 
-**Claude Desktop:** Settings > Developer > Edit Config. Inside `"mcpServers"` add the line `install.ps1` printed, for example:
+**Claude Desktop (easiest):** quit Claude Desktop, then run `.\scripts\connect-claude.ps1`. It finds the config file, backs it up and adds the entry.
+
+**Claude Desktop (by hand):** Settings > Developer > Edit Config. Inside `"mcpServers"` add the line `install.ps1` printed, for example:
 
 ```json
 {

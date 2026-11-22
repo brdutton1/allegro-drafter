@@ -85,7 +85,8 @@ $escaped = $bridge.Replace('\', '\\')
 Write-Host ''
 Write-Host 'Done. Connect Claude:'
 Write-Host ''
-Write-Host '  Claude Desktop: Settings > Developer > Edit Config, then inside "mcpServers" add:'
+Write-Host '  Claude Desktop: quit it, then run .\scripts\connect-claude.ps1'
+Write-Host '  (or by hand: Settings > Developer > Edit Config, then inside "mcpServers" add:)'
 Write-Host "    `"allegro-drafter`": { `"command`": `"$escaped`" }"
 Write-Host ''
 Write-Host '  Claude Code:'
