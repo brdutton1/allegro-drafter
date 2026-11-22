@@ -64,6 +64,7 @@ internal static class Tagging
         var bic = Categories[category].Element;
         var elements = new FilteredElementCollector(doc, view.Id).OfCategory(bic).WhereElementIsNotElementType().ToElements()
             .Where(e => e is not Room room || (room.Location is not null && room.Area > 0))
+            .Where(e => view.ViewType != ViewType.Elevation || FacesElevation(e, view))
             .ToList();
         if (!untaggedOnly) return elements;
 
@@ -73,6 +74,17 @@ internal static class Tagging
             : new FilteredElementCollector(doc, view.Id).OfClass(typeof(IndependentTag)).Cast<IndependentTag>()
                 .SelectMany(t => t.GetTaggedLocalElementIds()).ToHashSet();
         return elements.Where(e => !tagged.Contains(e.Id)).ToList();
+    }
+
+    /// <summary>
+    /// An elevation "sees" every door and window inside its extents, even ones behind
+    /// walls. Only tag openings in exterior walls whose outside face points at the viewer.
+    /// </summary>
+    private static bool FacesElevation(Element e, View view)
+    {
+        if (e is not FamilyInstance fi) return true; // walls and other categories: unchanged
+        if (fi.Host is not Wall wall || wall.WallType.Function != WallFunction.Exterior) return false;
+        return wall.Orientation.DotProduct(view.ViewDirection) > 0.5; // within ~60 degrees of facing the viewer
     }
 
     public static List<long> Tag(Document doc, View view, TagViewChange change)

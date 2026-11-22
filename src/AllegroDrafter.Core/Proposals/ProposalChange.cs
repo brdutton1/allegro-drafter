@@ -25,6 +25,10 @@ public abstract record ProposalChange
 {
     /// <summary>Plain-English line shown in the approval pane.</summary>
     public abstract string Describe();
+
+    /// <summary>Deletes something. The pane asks for a second click before applying.</summary>
+    [JsonIgnore]
+    public virtual bool IsDestructive => false;
 }
 
 public sealed record CreateSheetChange(string Number, string Name, string TitleBlock) : ProposalChange

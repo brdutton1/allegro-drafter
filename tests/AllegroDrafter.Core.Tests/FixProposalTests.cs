@@ -193,6 +193,17 @@ public class FixProposalTests
         Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeRoomCleanup, """{ "title": "t", "roomIds": [1], "allUnplaced": true }"""));
     }
 
+    [Fact]
+    public void Only_deletes_need_the_second_click()
+    {
+        Assert.True(new DeleteRoomsChange(new long[] { 1 }).IsDestructive);
+        Assert.False(new SetTypeMarkChange("doors", "A: 3080", "3080").IsDestructive);
+        Assert.False(new CreateSharedParameterChange("Tempered", "yesno", new[] { "doors" }).IsDestructive);
+        Assert.False(new ScheduleSortChange("S", new[] { "Type Mark" }).IsDestructive);
+        // The flag is computed, never stored, so old proposal files still load.
+        Assert.DoesNotContain("isDestructive", JsonSerializer.Serialize<ProposalChange>(new DeleteRoomsChange(new long[] { 1 }), Json.Indented), StringComparison.OrdinalIgnoreCase);
+    }
+
     // --------------------------------------------------------------- plumbing
 
     [Fact]

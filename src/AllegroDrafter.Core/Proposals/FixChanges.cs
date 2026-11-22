@@ -83,6 +83,8 @@ public sealed record ScheduleSortChange(string Schedule, IReadOnlyList<string> S
 /// </summary>
 public sealed record DeleteRoomsChange(IReadOnlyList<long> RoomIds, bool AllUnplaced = false, string? Summary = null) : ProposalChange
 {
+    public override bool IsDestructive => true;
+
     public override string Describe()
     {
         var what = AllUnplaced && RoomIds.Count == 0 ? "every unplaced and unenclosed room" : $"{RoomIds.Count} unplaced or unenclosed room(s)";

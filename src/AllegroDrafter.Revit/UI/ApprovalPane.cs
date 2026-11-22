@@ -24,6 +24,20 @@ internal sealed class ApprovalPane : UserControl
     private readonly TextBlock _statusLine;
     private readonly TextBlock _emptyState;
     private readonly StackPanel _cards = new();
+    private readonly ScrollViewer _scroll;
+
+    /// <summary>
+    /// After any refresh, Approve stays disabled this long. Cards move when the list
+    /// rebuilds; this stops a click meant for one card landing on the one that slid
+    /// under the cursor.
+    /// </summary>
+    private static readonly TimeSpan ArmDelay = TimeSpan.FromSeconds(1.2);
+
+    /// <summary>Second click on a delete must come within this window.</summary>
+    private static readonly TimeSpan ConfirmWindow = TimeSpan.FromSeconds(6);
+
+    private readonly List<Button> _arming = new();
+    private readonly System.Windows.Threading.DispatcherTimer _armTimer;
 
     internal ApprovalPane(App app)
     {
@@ -52,8 +66,17 @@ internal sealed class ApprovalPane : UserControl
 
         var root = new DockPanel { Margin = new Thickness(8) };
         root.Children.Add(header);
-        root.Children.Add(new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = body });
+        _scroll = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = body };
+        root.Children.Add(_scroll);
         Content = root;
+
+        _armTimer = new System.Windows.Threading.DispatcherTimer { Interval = ArmDelay };
+        _armTimer.Tick += (_, _) =>
+        {
+            _armTimer.Stop();
+            foreach (var button in _arming) button.IsEnabled = button.Tag is true;
+            _arming.Clear();
+        };
 
         _app.Proposals.Changed += (_, _) => Dispatcher.BeginInvoke(Refresh);
         Loaded += (_, _) => Refresh();
@@ -62,9 +85,15 @@ internal sealed class ApprovalPane : UserControl
     private void Refresh()
     {
         var proposals = _app.Proposals.List().OrderByDescending(p => p.CreatedUtc).ToList();
+        var offset = _scroll.VerticalOffset;
+        _armTimer.Stop();
+        _arming.Clear();
         _cards.Children.Clear();
         foreach (var p in proposals) _cards.Children.Add(Card(p));
         _emptyState.Visibility = proposals.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Keep the list where the designer was looking, then arm the Approve buttons.
+        Dispatcher.BeginInvoke(() => _scroll.ScrollToVerticalOffset(offset), System.Windows.Threading.DispatcherPriority.Loaded);
+        if (_arming.Count > 0) _armTimer.Start();
 
         var server = _app.Server?.IsRunning == true ? "Claude connection ready" : "Claude connection DOWN (see Allegro > Status)";
         var standards = _app.Standards.Current is { } s ? $"standards: {s.SourceDocument}" : "no office standards loaded";
@@ -117,15 +146,37 @@ internal sealed class ApprovalPane : UserControl
 
         if (!p.IsResolved)
         {
+            var label = p.Status == ProposalStatus.Failed ? "Retry" : "Approve";
             var approve = new Button
             {
-                Content = p.Status == ProposalStatus.Failed ? "Retry" : "Approve",
+                Content = label,
                 Padding = new Thickness(12, 3, 12, 3),
                 Margin = new Thickness(0, 0, 6, 0),
-                IsEnabled = p.CanApprove,
+                IsEnabled = false, // armed by _armTimer
+                Tag = p.CanApprove,
             };
+            if (p.CanApprove) _arming.Add(approve);
+
+            var destructive = p.Changes.Where(c => c.IsDestructive).Select(c => c.Describe()).ToList();
+            DateTime? confirmStarted = null;
             approve.Click += async (_, _) =>
             {
+                if (destructive.Count > 0 && (confirmStarted is null || DateTime.UtcNow - confirmStarted > ConfirmWindow))
+                {
+                    // Deletes take two clicks: the first one says what will be deleted.
+                    confirmStarted = DateTime.UtcNow;
+                    approve.Content = "Click again to DELETE";
+                    approve.Foreground = FailedBrush;
+                    approve.ToolTip = string.Join(Environment.NewLine, destructive);
+                    var reset = new System.Windows.Threading.DispatcherTimer { Interval = ConfirmWindow };
+                    reset.Tick += (_, _) =>
+                    {
+                        reset.Stop();
+                        if (approve.IsEnabled) { approve.Content = label; approve.ClearValue(ForegroundProperty); confirmStarted = null; }
+                    };
+                    reset.Start();
+                    return;
+                }
                 approve.IsEnabled = false; // Instant feedback. The store also blocks a second apply.
                 try
                 {
