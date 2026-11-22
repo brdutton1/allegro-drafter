@@ -34,8 +34,15 @@ if ($Uninstall) {
     return
 }
 
-if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
-    throw 'The .NET 8 SDK is not installed. Get it from https://dotnet.microsoft.com/download/dotnet/8.0 and run this again.'
+# Revit installs the .NET runtime, so 'dotnet' exists even without the SDK. Check for an actual SDK.
+$sdks = if (Get-Command dotnet -ErrorAction SilentlyContinue) { & dotnet --list-sdks 2>$null } else { @() }
+if (-not ($sdks | Where-Object { $_ -match '^(8|9|10)\.' })) {
+    throw @'
+The .NET 8 SDK is not installed (Revit only installs the runtime, which can't build).
+Install it with:   winget install Microsoft.DotNet.SDK.8
+or download "SDK 8.0, Windows x64" from https://dotnet.microsoft.com/download/dotnet/8.0
+Then close PowerShell, open a new one, and run this script again.
+'@
 }
 
 if (-not $SkipTests) {

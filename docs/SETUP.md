@@ -4,15 +4,16 @@ About 20 minutes the first time. Do it on the Windows machine that runs Revit.
 
 ## 1. Install the tools
 
-- **.NET 8 SDK**: https://dotnet.microsoft.com/download/dotnet/8.0 (SDK, x64)
+- **.NET 8 SDK**: `winget install Microsoft.DotNet.SDK.8`, or download "SDK 8.0, Windows x64" from https://dotnet.microsoft.com/download/dotnet/8.0. Revit only installs the runtime, which can't build. Open a new PowerShell after installing.
 - **Git**: https://git-scm.com/download/win
 - **Claude Desktop** (https://claude.ai/download) or Claude Code
 
 ## 2. Build and install the add-in
 
-Close Revit, then in PowerShell:
+Close Revit, then in PowerShell (start in your user folder, not System32):
 
 ```powershell
+cd $HOME
 git clone https://github.com/brdutton1/allegro-drafter
 cd allegro-drafter
 .\scripts\install.ps1
