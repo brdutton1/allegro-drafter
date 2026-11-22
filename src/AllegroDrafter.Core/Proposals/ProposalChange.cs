@@ -202,7 +202,13 @@ public sealed record DimensionViewChange(
     public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
 }
 
-public sealed record FieldToAdd(string Field, string? After = null);
+public sealed record FieldToAdd(string Field, string? After = null, string? Before = null)
+{
+    public string Describe() =>
+        After is not null ? $"\"{Field}\" after \"{After}\""
+        : Before is not null ? $"\"{Field}\" before \"{Before}\""
+        : $"\"{Field}\"";
+}
 
 /// <summary>Adds and removes columns on an existing schedule (e.g. add Mark to the door schedule).</summary>
 public sealed record ScheduleFieldsChange(string Schedule, IReadOnlyList<FieldToAdd> Add, IReadOnlyList<string> Remove) : ProposalChange
@@ -211,7 +217,7 @@ public sealed record ScheduleFieldsChange(string Schedule, IReadOnlyList<FieldTo
     {
         var parts = new List<string>();
         if (Add.Count > 0)
-            parts.Add("add " + string.Join(", ", Add.Select(a => a.After is null ? $"\"{a.Field}\"" : $"\"{a.Field}\" after \"{a.After}\"")));
+            parts.Add("add " + string.Join(", ", Add.Select(a => a.Describe())));
         if (Remove.Count > 0)
             parts.Add("remove " + string.Join(", ", Remove.Select(r => $"\"{r}\"")));
         return $"Schedule \"{Schedule}\": {string.Join("; ", parts)}";

@@ -62,6 +62,44 @@ public class FixProposalTests
     }
 
     [Fact]
+    public void Size_override_is_carried_and_shown_to_the_designer()
+    {
+        var r = Parse(ToolNames.ProposeTypeMarks, """
+            { "title": "t", "types": [ { "category": "doors", "typeName": "Milgard 3-Panel: 126\" x 88\"", "typeMark": "10674 SLDR",
+                "sizeOverride": "Designer: use the size in the type name (126\" x 88\")." } ] }
+            """);
+        var c = Assert.IsType<SetTypeMarkChange>(r.Changes.Single());
+        Assert.Equal("Designer: use the size in the type name (126\" x 88\").", c.SizeOverride);
+        var shown = (c with { CurrentMark = "440", Size = "10'-6\" x 10'-0\"", InstanceCount = 2 }).Describe();
+        Assert.Equal("Door type \"Milgard 3-Panel: 126\" x 88\"\" (2 placed, family reads 10'-6\" x 10'-0\"): Type Mark 440 -> 10674 SLDR. SIZE CHECK OVERRIDDEN: Designer: use the size in the type name (126\" x 88\").", shown);
+
+        // The office rules still apply: an override doesn't excuse a bad code.
+        var bad = Validate(ToolNames.ProposeTypeMarks, """
+            { "title": "t", "types": [ { "category": "doors", "typeName": "X", "typeMark": "10674 SLIDE", "sizeOverride": "name size" } ] }
+            """);
+        Assert.Contains(bad, e => e.Contains("isn't an office operation code"));
+
+        Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeTypeMarks,
+            """{ "title": "t", "types": [ { "category": "doors", "typeName": "X", "typeMark": "3080", "sizeOverride": "  " } ] }"""));
+    }
+
+    [Fact]
+    public void Schedule_fields_can_go_before_a_column()
+    {
+        var r = Parse(ToolNames.ProposeScheduleFields, """
+            { "title": "t", "schedules": [ { "schedule": "DOOR SCHEDULE", "add": [
+                { "field": "Type Mark", "before": "Width" }, { "field": "Count", "after": "Type Mark" }, { "field": "Tempered" } ] } ] }
+            """);
+        var c = Assert.IsType<ScheduleFieldsChange>(r.Changes.Single());
+        Assert.Equal(new FieldToAdd("Type Mark", Before: "Width"), c.Add[0]);
+        Assert.Equal("Schedule \"DOOR SCHEDULE\": add \"Type Mark\" before \"Width\", \"Count\" after \"Type Mark\", \"Tempered\"", c.Describe());
+
+        var ex = Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeScheduleFields,
+            """{ "title": "t", "schedules": [ { "schedule": "S", "add": [ { "field": "A", "after": "B", "before": "C" } ] } ] }"""));
+        Assert.Contains("not both", ex.Message);
+    }
+
+    [Fact]
     public void Bad_type_mark_category_is_refused()
     {
         var ex = Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeTypeMarks,

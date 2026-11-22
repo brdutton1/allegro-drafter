@@ -177,7 +177,7 @@ Every rule has a default. Override any of them in `standards.json` under `manual
 "manual": {
   "audit": {
     "windowOperations": ["CSMT", "AWN", "DH", "SH", "SLDR", "FIX"],
-    "doorOperations": ["PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH"],
+    "doorOperations": ["PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH", "SHWR"],
     "typeMarkToleranceInches": 0.5,
     "doorScheduleFields": ["Type Mark", "Count", "Door Swing", "Tempered"],
     "windowScheduleFields": ["Type Mark", "Count", "Tempered", "Egress"],

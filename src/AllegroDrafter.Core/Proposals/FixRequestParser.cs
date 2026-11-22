@@ -21,7 +21,13 @@ internal static class FixRequestParser
             if (!OpeningCategories.Contains(category))
                 throw new ToolArgumentException($"{path}.category must be doors or windows.");
             var mark = Args.RequiredString(item, "typeMark", path).Trim();
-            changes.Add(new SetTypeMarkChange(category, Args.RequiredString(item, "typeName", path).Trim(), System.Text.RegularExpressions.Regex.Replace(mark.ToUpperInvariant(), @"\s+", " ")));
+            var sizeOverride = Args.OptionalString(item, "sizeOverride", path)?.Trim();
+            if (sizeOverride is { Length: 0 }) throw new ToolArgumentException($"{path}.sizeOverride can't be blank. Say why the designer wants this size, or leave it out.");
+            changes.Add(new SetTypeMarkChange(
+                category,
+                Args.RequiredString(item, "typeName", path).Trim(),
+                System.Text.RegularExpressions.Regex.Replace(mark.ToUpperInvariant(), @"\s+", " "),
+                SizeOverride: sizeOverride));
         }
         return changes;
     }

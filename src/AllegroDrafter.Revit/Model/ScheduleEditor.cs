@@ -40,12 +40,17 @@ internal static class ScheduleEditor
                 errors.Add($"\"{add.Field}\" can't be scheduled in \"{change.Schedule}\".{(closest is null ? "" : $" Did you mean \"{closest}\"?")}");
                 continue;
             }
-            if (add.After is not null && !columns.Contains(add.After))
+            var anchor = add.After ?? add.Before;
+            if (anchor is not null && !columns.Contains(anchor))
             {
-                errors.Add($"Can't insert after \"{add.After}\": \"{change.Schedule}\" has no such column. Its columns: {string.Join(", ", columns)}.");
+                errors.Add($"Can't insert {(add.After is not null ? "after" : "before")} \"{anchor}\": \"{change.Schedule}\" has no such column. Its columns: {string.Join(", ", columns)}.");
                 continue;
             }
-            columns.Insert(add.After is null ? columns.Count : columns.IndexOf(add.After) + 1, add.Field);
+            columns.Insert(
+                add.After is not null ? columns.IndexOf(add.After) + 1
+                : add.Before is not null ? columns.IndexOf(add.Before)
+                : columns.Count,
+                add.Field);
         }
         return errors;
     }
@@ -64,14 +69,15 @@ internal static class ScheduleEditor
         foreach (var add in change.Add)
         {
             var field = definition.GetSchedulableFields().First(f => f.GetName(doc) == add.Field);
-            if (add.After is null)
+            var anchor = add.After ?? add.Before;
+            if (anchor is null)
             {
                 definition.AddField(field);
                 continue;
             }
             var order = definition.GetFieldOrder();
-            var index = order.ToList().FindIndex(f => definition.GetField(f).GetName() == add.After);
-            definition.InsertField(field, index + 1);
+            var index = order.ToList().FindIndex(f => definition.GetField(f).GetName() == anchor);
+            definition.InsertField(field, add.After is not null ? index + 1 : index);
         }
     }
 

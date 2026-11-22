@@ -248,7 +248,8 @@ public static class ToolCatalog
                     "schedule": { "type": "string", "description": "Exact schedule name from list_schedules." },
                     "add": { "type": "array", "items": { "type": "object", "required": ["field"], "properties": {
                         "field": { "type": "string" },
-                        "after": { "type": "string", "description": "Existing (or just-added) column to insert after. Omit to add at the end." } },
+                        "after": { "type": "string", "description": "Existing (or just-added) column to insert after. Omit both after and before to add at the end." },
+                        "before": { "type": "string", "description": "Existing (or just-added) column to insert before, e.g. put Type Mark before Width to make it the first column." } },
                       "additionalProperties": false } },
                     "remove": { "type": "array", "items": { "type": "string" } } },
                   "additionalProperties": false } } },
@@ -263,7 +264,8 @@ public static class ToolCatalog
                 "types": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["category","typeName","typeMark"], "properties": {
                     "category": { "type": "string", "enum": ["doors","windows"] },
                     "typeName": { "type": "string", "description": "\"Family: Type\" exactly as audit_set or count_elements reports it." },
-                    "typeMark": { "type": "string", "description": "New Type Mark, e.g. \"3080\" or \"6060 CSMT\"." } },
+                    "typeMark": { "type": "string", "description": "New Type Mark, e.g. \"3080\" or \"6060 CSMT\"." },
+                    "sizeOverride": { "type": "string", "description": "ONLY when the designer told you to use a size that doesn't match the family's Width/Height. Their reason, in their words. Skips the size check and is shown in the pane." } },
                   "additionalProperties": false } } },
               "additionalProperties": false }
             """, ReadOnly: false),

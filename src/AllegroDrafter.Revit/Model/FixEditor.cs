@@ -56,6 +56,7 @@ internal static class FixEditor
 
             var code = SizeCode.Parse(m.TypeMark);
             if (code is null) continue; // the standards check already reported it
+            if (m.SizeOverride is not null) continue; // the designer chose this size; the pane says so
             var w = FactsReader.Width(symbol);
             var h = FactsReader.Height(symbol);
             if (w is null || h is null)

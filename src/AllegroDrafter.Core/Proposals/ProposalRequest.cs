@@ -313,7 +313,12 @@ public static class ProposalRequestParser
                 for (var j = 0; j < addArray.Count; j++)
                 {
                     var field = Args.ObjectAt(addArray, j, $"{path}.add");
-                    add.Add(new FieldToAdd(Args.RequiredString(field, "field", $"{path}.add[{j}]"), Args.OptionalString(field, "after", $"{path}.add[{j}]")));
+                    var fieldPath = $"{path}.add[{j}]";
+                    var after = Args.OptionalString(field, "after", fieldPath);
+                    var before = Args.OptionalString(field, "before", fieldPath);
+                    if (after is not null && before is not null)
+                        throw new ToolArgumentException($"{fieldPath}: give after or before, not both.");
+                    add.Add(new FieldToAdd(Args.RequiredString(field, "field", fieldPath), after, before));
                 }
             }
             var remove = Args.OptionalStringArray(item, "remove", path)?.ToList() ?? new List<string>();

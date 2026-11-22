@@ -10,23 +10,30 @@ namespace AllegroDrafter.Core.Proposals;
 /// the type, so the pane shows the count and the type's real size.
 /// </summary>
 /// <param name="TypeName">"Family: Type", exactly as audit_set and count_elements report it.</param>
+/// <param name="SizeOverride">
+/// Why the designer wants a size code that doesn't match the family's Width/Height
+/// (e.g. "use the size in the type name; the family's Height parameter is wrong").
+/// Only set when the designer said so. Shown in the pane, so approving it is their call.
+/// </param>
 public sealed record SetTypeMarkChange(
     string Category,
     string TypeName,
     string TypeMark,
     string? CurrentMark = null,
     string? Size = null,
-    int? InstanceCount = null) : ProposalChange
+    int? InstanceCount = null,
+    string? SizeOverride = null) : ProposalChange
 {
     public override string Describe()
     {
         var kind = Category == "windows" ? "Window" : "Door";
         var facts = new List<string>();
         if (InstanceCount is int n) facts.Add($"{n} placed");
-        if (Size is not null) facts.Add(Size);
+        if (Size is not null) facts.Add(SizeOverride is null ? Size : $"family reads {Size}");
         var detail = facts.Count == 0 ? "" : $" ({string.Join(", ", facts)})";
         var from = string.IsNullOrWhiteSpace(CurrentMark) ? "(blank)" : CurrentMark;
-        return $"{kind} type \"{TypeName}\"{detail}: Type Mark {from} -> {TypeMark}";
+        var overridden = SizeOverride is null ? "" : $". SIZE CHECK OVERRIDDEN: {SizeOverride}";
+        return $"{kind} type \"{TypeName}\"{detail}: Type Mark {from} -> {TypeMark}{overridden}";
     }
 }
 

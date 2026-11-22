@@ -12,7 +12,7 @@ public sealed class AuditSettings
     public List<string> WindowOperations { get; set; } = new() { "CSMT", "AWN", "DH", "SH", "SLDR", "FIX" };
 
     /// <summary>Operation codes allowed after the size on doors. Swing doors carry the size only.</summary>
-    public List<string> DoorOperations { get; set; } = new() { "PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH" };
+    public List<string> DoorOperations { get; set; } = new() { "PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH", "SHWR" };
 
     /// <summary>Windows must carry an operation code. Doors may leave it off.</summary>
     public bool WindowOperationRequired { get; set; } = true;
