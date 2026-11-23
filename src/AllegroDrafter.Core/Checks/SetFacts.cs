@@ -86,7 +86,9 @@ public sealed record OpeningFact(
 }
 
 /// <param name="State">"placed", "unplaced", "not enclosed" (or redundant).</param>
-public sealed record RoomFact(long ElementId, string Number, string Name, string? Level, double AreaSqFt, string State, bool HasWetFixture);
+/// <param name="X">Room location point (plan feet), for numbering order. Null when unplaced.</param>
+public sealed record RoomFact(long ElementId, string Number, string Name, string? Level, double AreaSqFt, string State, bool HasWetFixture,
+    double? X = null, double? Y = null);
 
 /// <summary>A wall type with at least one wall in the model.</summary>
 /// <param name="Name">"Basic Wall: Interior 2x6 Wall (INSULATION)".</param>

@@ -189,7 +189,8 @@ internal static class FactsReader
         foreach (var r in new FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_Rooms).WhereElementIsNotElementType().OfType<Room>())
         {
             var state = r.Location is null ? "unplaced" : r.Area <= 0 ? "not enclosed" : "placed";
-            facts.Rooms.Add(new RoomFact(r.Id.Value, r.Number ?? "", RevitLookup.RoomName(r), r.Level?.Name, Math.Round(r.Area, 1), state, wetRooms.Contains(r.Id.Value)));
+            var p = (r.Location as LocationPoint)?.Point;
+            facts.Rooms.Add(new RoomFact(r.Id.Value, r.Number ?? "", RevitLookup.RoomName(r), r.Level?.Name, Math.Round(r.Area, 1), state, wetRooms.Contains(r.Id.Value), p?.X, p?.Y));
         }
     }
 

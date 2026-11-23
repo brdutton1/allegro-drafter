@@ -67,6 +67,38 @@ public sealed class AuditSettings
     /// </summary>
     public List<string> TemperedReasonParameters { get; set; } = new() { "Tempered Reason", "Comments" };
 
+    // ---- Finish Drafting rules ----
+
+    /// <summary>Text parameter the room tag reads for the room's size ("14'-1\" x 11'-4\"").</summary>
+    public string RoomSizeParameter { get; set; } = "Room Size";
+
+    /// <summary>Room numbering starts at the first of these it finds on a level, then goes clockwise.</summary>
+    public List<string> EntryRoomNames { get; set; } = new() { "ENTRY", "FOYER" };
+
+    /// <summary>
+    /// Level name to the room number prefix (basement 0, main 1, upper 2). Levels not listed are
+    /// read from their name (BASEMENT/LOWER = 0, MAIN/FIRST = 1, UPPER/SECOND = 2), or asked.
+    /// </summary>
+    public Dictionary<string, int> LevelNumberPrefixes { get; set; } = new();
+
+    /// <summary>Door swing value for doors that don't swing, by Type Mark operation code.</summary>
+    public Dictionary<string, string> SwingValueByOperation { get; set; } = new()
+    {
+        ["PKT"] = "POCKET", ["SLDR"] = "SLIDING", ["BYPASS"] = "SLIDING", ["BARN"] = "SLIDING",
+    };
+
+    /// <summary>Operation codes that are still hinged doors, so handing applies. A size-only Type Mark is a swing door too.</summary>
+    public List<string> SwingOperations { get; set; } = new() { "EXT", "SHWR", "FRNCH" };
+
+    /// <summary>How the office's door families read in Revit: the leaf swings toward FacingOrientation.</summary>
+    public bool DoorSwingsTowardFacing { get; set; } = true;
+
+    /// <summary>How the office's door families read in Revit: HandOrientation points from the door center to the hinges.</summary>
+    public bool DoorHandPointsToHinge { get; set; } = true;
+
+    /// <summary>Door families whose handing reads backwards (found on a spot check). LH and RH swap for these.</summary>
+    public List<string> HandingFlipFamilies { get; set; } = new();
+
     // ---- Egress (IRC R310) ----
 
     /// <summary>Room names that need an egress window. Case-insensitive regex.</summary>
