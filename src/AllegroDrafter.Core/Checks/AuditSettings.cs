@@ -11,8 +11,12 @@ public sealed class AuditSettings
     /// <summary>Operation codes allowed after the size on windows.</summary>
     public List<string> WindowOperations { get; set; } = new() { "CSMT", "AWN", "DH", "SH", "SLDR", "FIX" };
 
-    /// <summary>Operation codes allowed after the size on doors. Swing doors carry the size only.</summary>
-    public List<string> DoorOperations { get; set; } = new() { "PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH", "SHWR" };
+    /// <summary>
+    /// Operation codes allowed after the size on doors. Swing doors carry the size only.
+    /// EXT marks an exterior swing door that shares its size with an interior one ("3080 EXT"),
+    /// so the two get separate schedule rows.
+    /// </summary>
+    public List<string> DoorOperations { get; set; } = new() { "PKT", "BARN", "BIFOLD", "BYPASS", "SLDR", "FRNCH", "OH", "SHWR", "EXT" };
 
     /// <summary>Windows must carry an operation code. Doors may leave it off.</summary>
     public bool WindowOperationRequired { get; set; } = true;
