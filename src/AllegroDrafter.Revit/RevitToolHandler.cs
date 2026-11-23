@@ -14,14 +14,14 @@ internal sealed class RevitToolHandler : IToolHandler
     private readonly RevitDispatcher _dispatcher;
     private readonly ProposalStore _proposals;
     private readonly StandardsStore _standards;
-    private readonly Action _onNewProposal;
+    private readonly DrafterService _drafter;
 
-    public RevitToolHandler(RevitDispatcher dispatcher, ProposalStore proposals, StandardsStore standards, Action onNewProposal)
+    public RevitToolHandler(RevitDispatcher dispatcher, ProposalStore proposals, StandardsStore standards, DrafterService drafter)
     {
         _dispatcher = dispatcher;
         _proposals = proposals;
         _standards = standards;
-        _onNewProposal = onNewProposal;
+        _drafter = drafter;
     }
 
     public async Task<ToolCallResult> CallAsync(string name, JsonObject args, CancellationToken ct)
@@ -62,15 +62,8 @@ internal sealed class RevitToolHandler : IToolHandler
                 case ToolNames.AuditSet:
                 {
                     var only = Args.OptionalStringArray(args, "checks", "arguments");
-                    var profile = _standards.Current;
-                    var settings = profile?.Manual.Audit ?? new Core.Checks.AuditSettings();
-                    var templates = profile?.ViewTemplates.Select(t => t.Name).ToList() ?? new List<string>();
-                    // Reject unknown check names before touching Revit.
-                    if (only is { Count: > 0 }) Core.Checks.SetAuditor.Run(new Core.Checks.SetFacts(), settings, templates, only);
-                    var facts = await _dispatcher.InvokeAsync(app => FactsReader.Read(RequireProject(app), settings));
-                    if (profile is null)
-                        facts.ReadWarnings.Add("No standards profile loaded, so default audit rules were used and view templates weren't checked against the office list.");
-                    return ToolCallResult.Ok(Core.Checks.SetAuditor.Run(facts, settings, templates, only));
+                    var (_, report) = await _drafter.RunAuditAsync(only);
+                    return ToolCallResult.Ok(report);
                 }
                 case ToolNames.ListRooms:
                 {
@@ -101,23 +94,9 @@ internal sealed class RevitToolHandler : IToolHandler
 
     private async Task<ToolCallResult> Propose(string tool, JsonObject args)
     {
-        var request = ProposalRequestParser.Parse(tool, args);
-
-        var standardsErrors = ProposalValidator.Validate(request, _standards.Current);
-        if (standardsErrors.Count > 0)
-            return ToolCallResult.Errors("Proposal refused before reaching the designer. Fix these and propose again:", standardsErrors);
-
-        var (documentTitle, modelErrors, labeled) = await _dispatcher.InvokeAsync(app =>
-        {
-            var doc = RequireProject(app);
-            return (doc.Title, ModelChecker.Check(doc, request.Changes, _standards.Current?.Manual.Audit), ModelChecker.Annotate(doc, request.Changes));
-        });
-        if (modelErrors.Count > 0)
-            return ToolCallResult.Errors("Proposal refused before reaching the designer. Fix these and propose again:", modelErrors);
-        request = request with { Changes = labeled };
-
-        var proposal = _proposals.Add(documentTitle, request);
-        _onNewProposal();
+        var outcome = await _drafter.ProposeAsync(ProposalRequestParser.Parse(tool, args));
+        if (!outcome.Queued) return ToolCallResult.Errors(ProposeOutcome.RefusedHeading, outcome.Errors);
+        var proposal = outcome.Proposal!;
         return ToolCallResult.Ok(new
         {
             proposalId = proposal.Id,
@@ -127,16 +106,5 @@ internal sealed class RevitToolHandler : IToolHandler
         });
     }
 
-    private static Document RequireProject(UIApplication app)
-    {
-        var doc = app.ActiveUIDocument?.Document;
-        if (doc is null) throw new NoProjectException("No project is open in Revit.");
-        if (doc.IsFamilyDocument) throw new NoProjectException("The active Revit document is a family, not a project. Switch to the project.");
-        return doc;
-    }
-
-    private sealed class NoProjectException : Exception
-    {
-        public NoProjectException(string message) : base(message) { }
-    }
+    private static Document RequireProject(UIApplication app) => DrafterService.RequireProject(app);
 }

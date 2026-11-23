@@ -23,6 +23,7 @@ public sealed class App : IExternalApplication
     internal StandardsStore Standards { get; private set; } = null!;
     internal AuditLog Audit { get; private set; } = null!;
     internal RevitDispatcher Dispatcher { get; private set; } = null!;
+    internal DrafterService Drafter { get; private set; } = null!;
     internal McpConfig? Config { get; private set; }
     internal McpHttpServer? Server { get; private set; }
     internal string? ServerError { get; private set; }
@@ -36,6 +37,7 @@ public sealed class App : IExternalApplication
         Standards = new StandardsStore(Paths);
         Audit = new AuditLog(Paths);
         Dispatcher = new RevitDispatcher();
+        Drafter = new DrafterService(Dispatcher, Proposals, Standards, ShowPaneSoon);
 
         var pane = new ApprovalPane(this);
         application.RegisterDockablePane(PaneId, "Allegro Drafter", new ApprovalPaneProvider(pane));
@@ -55,7 +57,7 @@ public sealed class App : IExternalApplication
         try
         {
             Config = McpConfig.LoadOrCreate(Paths);
-            var handler = new RevitToolHandler(Dispatcher, Proposals, Standards, ShowPaneSoon);
+            var handler = new RevitToolHandler(Dispatcher, Proposals, Standards, Drafter);
             Server = new McpHttpServer(Config, new McpProtocol(handler));
             Server.Start();
             ServerError = null;
