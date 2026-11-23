@@ -12,6 +12,8 @@ public enum ProposalStatus
     Rejected,
     /// <summary>Approved but Revit refused or the model changed. Nothing was changed. Can be retried.</summary>
     Failed,
+    /// <summary>Applied, then undone in Revit (Ctrl+Z). Redo in Revit puts it back to Applied.</summary>
+    Undone,
 }
 
 public sealed class Proposal
@@ -61,9 +63,12 @@ public sealed class Proposal
     public string? ResolvedBy { get; internal set; }
     public int Attempts { get; internal set; }
 
+    /// <summary>The apply message, kept while the proposal is undone so a redo can restore it.</summary>
+    internal string? AppliedMessage { get; set; }
+
     public bool CanApprove => Status is ProposalStatus.Pending or ProposalStatus.Failed;
     public bool CanReject => Status is ProposalStatus.Pending or ProposalStatus.Failed;
-    public bool IsResolved => Status is ProposalStatus.Applied or ProposalStatus.Rejected;
+    public bool IsResolved => Status is ProposalStatus.Applied or ProposalStatus.Rejected or ProposalStatus.Undone;
 }
 
 /// <summary>On-disk shape of a proposal.</summary>

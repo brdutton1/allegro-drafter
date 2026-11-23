@@ -379,7 +379,7 @@ public static class ToolCatalog
             "Proposals made this Revit session and their status: pending, applying, applied, rejected or failed.",
             """
             { "type": "object", "properties": {
-                "status": { "type": "string", "enum": ["pending","applying","applied","rejected","failed"] } },
+                "status": { "type": "string", "enum": ["pending","applying","applied","rejected","failed","undone"] } },
               "additionalProperties": false }
             """, ReadOnly: true),
 

@@ -42,12 +42,14 @@ public sealed class App : IExternalApplication
         var pane = new ApprovalPane(this);
         application.RegisterDockablePane(PaneId, "Allegro Drafter", new ApprovalPaneProvider(pane));
         BuildRibbon(application);
+        application.ControlledApplication.DocumentChanged += OnDocumentChanged;
         StartServer();
         return Result.Succeeded;
     }
 
     public Result OnShutdown(UIControlledApplication application)
     {
+        application.ControlledApplication.DocumentChanged -= OnDocumentChanged;
         Server?.Dispose();
         return Result.Succeeded;
     }
@@ -111,6 +113,26 @@ public sealed class App : IExternalApplication
 
         Proposals.CompleteApply(proposalId, result.Success, result.Message, result.CreatedElementIds, user);
         Audit.Write(AuditEntry.From(proposal, user));
+    }
+
+    /// <summary>
+    /// Ctrl+Z / Ctrl+Y on one of our transactions. Only parses names and updates the
+    /// store: no model reads, so it's safe inside Revit's event.
+    /// </summary>
+    private void OnDocumentChanged(object? sender, Autodesk.Revit.DB.Events.DocumentChangedEventArgs e)
+    {
+        var op = e.Operation;
+        var undone = op == Autodesk.Revit.DB.Events.UndoOperation.TransactionUndone;
+        if (!undone && op != Autodesk.Revit.DB.Events.UndoOperation.TransactionRedone) return;
+        var user = Environment.UserName;
+        foreach (var name in e.GetTransactionNames())
+        {
+            if (UndoNames.ParseId(name) is not { } id) continue;
+            var changed = undone ? Proposals.MarkUndone(id) : Proposals.MarkRedone(id);
+            if (!changed || Proposals.Get(id) is not { } p) continue;
+            try { Audit.Write(AuditEntry.From(p, user)); }
+            catch { /* Logging must never break undo. */ }
+        }
     }
 
     internal void Reject(string proposalId)

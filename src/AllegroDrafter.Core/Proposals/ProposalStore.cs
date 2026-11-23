@@ -115,6 +115,36 @@ public sealed class ProposalStore
         return true;
     }
 
+    /// <summary>Revit undid the proposal's transaction. Only an applied proposal can be undone.</summary>
+    public bool MarkUndone(string id)
+    {
+        lock (_gate)
+        {
+            var p = Find(id);
+            if (p is null || p.Status != ProposalStatus.Applied) return false;
+            p.Status = ProposalStatus.Undone;
+            p.AppliedMessage = p.ResultMessage;
+            p.ResultMessage = "Undone in Revit. Redo puts it back. Nothing from this proposal is in the model now.";
+        }
+        RaiseChanged();
+        return true;
+    }
+
+    /// <summary>Revit redid the proposal's transaction.</summary>
+    public bool MarkRedone(string id)
+    {
+        lock (_gate)
+        {
+            var p = Find(id);
+            if (p is null || p.Status != ProposalStatus.Undone) return false;
+            p.Status = ProposalStatus.Applied;
+            p.ResultMessage = p.AppliedMessage;
+            p.AppliedMessage = null;
+        }
+        RaiseChanged();
+        return true;
+    }
+
     /// <summary>Removes applied and rejected proposals from the list (the audit log keeps them).</summary>
     public int ClearResolved()
     {

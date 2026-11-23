@@ -36,8 +36,7 @@ internal static class ProposalApplier
         int tagCount = 0, calloutCount = 0, noteCount = 0, dimensionCount = 0, columnEdits = 0;
         int typeMarkCount = 0, parameterCount = 0, sortCount = 0, roomsDeleted = 0, wallFunctionCount = 0;
 
-        var name = $"Allegro Drafter: {proposal.Title}";
-        using var transaction = new Transaction(doc, name.Length > 80 ? name[..80] : name);
+        using var transaction = new Transaction(doc, UndoNames.Format(proposal.Id, proposal.Title));
         try
         {
             transaction.Start();

@@ -16,6 +16,7 @@ internal sealed class ApprovalPane : UserControl
     private static readonly Brush AppliedBrush = Frozen(0x2E, 0x7D, 0x32);
     private static readonly Brush RejectedBrush = Frozen(0x75, 0x75, 0x75);
     private static readonly Brush FailedBrush = Frozen(0xC6, 0x28, 0x28);
+    private static readonly Brush UndoneBrush = Frozen(0x8D, 0x6E, 0x63);
     private static readonly Brush MutedBrush = Frozen(0x66, 0x66, 0x66);
     private static readonly Brush BorderGray = Frozen(0xD0, 0xD0, 0xD0);
 
@@ -142,6 +143,7 @@ internal sealed class ApprovalPane : UserControl
         {
             var result = Text(p.ResultMessage, top: 6);
             if (p.Status == ProposalStatus.Failed) result.Foreground = FailedBrush;
+            if (p.Status == ProposalStatus.Undone) result.Foreground = UndoneBrush;
             panel.Children.Add(result);
         }
 
@@ -200,6 +202,7 @@ internal sealed class ApprovalPane : UserControl
 
         return new Border
         {
+            Opacity = p.Status == ProposalStatus.Undone ? 0.7 : 1.0,
             BorderBrush = BorderGray,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
@@ -215,6 +218,7 @@ internal sealed class ApprovalPane : UserControl
         ProposalStatus.Applying => ApplyingBrush,
         ProposalStatus.Applied => AppliedBrush,
         ProposalStatus.Rejected => RejectedBrush,
+        ProposalStatus.Undone => UndoneBrush,
         _ => FailedBrush,
     };
 
