@@ -66,7 +66,8 @@ internal static class FixRequestParser
             var repeated = sortBy.GroupBy(s => s, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).Select(g => g.Key).ToList();
             if (repeated.Count > 0) throw new ToolArgumentException($"{path}.sortBy lists \"{string.Join("\", \"", repeated)}\" more than once.");
             bool? itemized = item.ContainsKey("itemized") ? Args.OptionalBool(item, "itemized", path) : null;
-            changes.Add(new ScheduleSortChange(Args.RequiredString(item, "schedule", path), sortBy, itemized));
+            bool? headers = item.ContainsKey("groupHeaders") ? Args.OptionalBool(item, "groupHeaders", path) : null;
+            changes.Add(new ScheduleSortChange(Args.RequiredString(item, "schedule", path), sortBy, itemized, headers));
         }
         return changes;
     }

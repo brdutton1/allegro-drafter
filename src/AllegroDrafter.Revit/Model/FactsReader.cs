@@ -81,7 +81,9 @@ internal static class FactsReader
         {
             var d = s.Definition;
             var fields = d.GetFieldOrder().Select(id => d.GetField(id)).Select(f => new ScheduleFieldFact(f.GetName(), f.IsHidden)).ToList();
-            var sortFields = d.GetSortGroupFields().Select(sg => d.GetField(sg.FieldId).GetName()).ToList();
+            var groups = d.GetSortGroupFields();
+            var sortFields = groups.Select(sg => d.GetField(sg.FieldId).GetName()).ToList();
+            var firstCounts = groups.Count > 0 && groups[0].ShowFooter && groups[0].ShowFooterCount;
             facts.Schedules.Add(new ScheduleFact(
                 s.Name,
                 CategoryKey(doc, d.CategoryId),
@@ -89,7 +91,8 @@ internal static class FactsReader
                 d.IsItemized,
                 fields,
                 sortFields,
-                placement.TryGetValue(s.Id, out var on) ? on : new List<string>()));
+                placement.TryGetValue(s.Id, out var on) ? on : new List<string>(),
+                firstCounts));
         }
     }
 

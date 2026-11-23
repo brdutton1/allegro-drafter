@@ -36,7 +36,12 @@ public sealed record ScheduleFact(
     bool IsItemized,
     IReadOnlyList<ScheduleFieldFact> Fields,
     IReadOnlyList<string> SortGroupFields,
-    IReadOnlyList<string> OnSheets);
+    IReadOnlyList<string> OnSheets,
+    bool FirstGroupCounts = false)
+{
+    /// <summary>One line per element with a count under each group: the Count column isn't needed.</summary>
+    public bool CountsInGroupFooters => IsItemized && FirstGroupCounts;
+}
 
 public sealed record ScheduleFieldFact(string Name, bool IsHidden);
 

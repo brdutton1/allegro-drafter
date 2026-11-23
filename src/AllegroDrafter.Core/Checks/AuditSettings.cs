@@ -44,7 +44,11 @@ public sealed class AuditSettings
 
     // ---- Schedules ----
 
-    public List<string> DoorScheduleFields { get; set; } = new() { "Type Mark", "Count", "Door Swing", "Tempered" };
+    /// <summary>
+    /// Office door schedule: size code, where it goes, swing, tempered. Count can be a column, or
+    /// the footer count under each size code when the schedule lists one door per line.
+    /// </summary>
+    public List<string> DoorScheduleFields { get; set; } = new() { "Type Mark", "Count", "From Room: Name", "To Room: Name", "Door Swing", "Tempered" };
     public List<string> WindowScheduleFields { get; set; } = new() { "Type Mark", "Count", "Tempered", "Egress" };
 
     /// <summary>Door and window schedules sort or group by this field first, so rows read like the tags.</summary>

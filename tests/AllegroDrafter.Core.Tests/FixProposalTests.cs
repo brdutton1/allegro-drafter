@@ -162,6 +162,20 @@ public class FixProposalTests
     }
 
     [Fact]
+    public void Schedule_sort_with_group_headers()
+    {
+        var r = Parse(ToolNames.ProposeScheduleSort, """
+            { "title": "One line per door", "schedules": [
+                { "schedule": "DOOR SCHEDULE", "sortBy": ["Type Mark", "From Room: Name"], "itemized": true, "groupHeaders": true } ] }
+            """);
+        var sort = (ScheduleSortChange)r.Changes[0];
+        Assert.True(sort.GroupHeaders);
+        Assert.Equal("Schedule \"DOOR SCHEDULE\": sort by \"Type Mark\", then \"From Room: Name\"; one row per element; a header and a count for each \"Type Mark\"", sort.Describe());
+        var json = JsonSerializer.Serialize<ProposalChange>(sort, Json.Indented);
+        Assert.Equal(sort, JsonSerializer.Deserialize<ProposalChange>(json, Json.Indented));
+    }
+
+    [Fact]
     public void Schedule_sort_needs_distinct_fields()
     {
         Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeScheduleSort,

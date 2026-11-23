@@ -174,8 +174,10 @@ public static class SetAuditor
 
             foreach (var s in placed.Count > 0 ? placed : all)
             {
-                var missing = required.Where(r => !s.Fields.Any(x => Same(x.Name, r))).ToList();
-                var hidden = required.Where(r => s.Fields.Any(x => Same(x.Name, r) && x.IsHidden)).ToList();
+                // Itemized with a count under each size code: the count lives in the footer, not a column.
+                var need = s.CountsInGroupFooters ? required.Where(r => !Same(r, "Count")).ToList() : required;
+                var missing = need.Where(r => !s.Fields.Any(x => Same(x.Name, r))).ToList();
+                var hidden = need.Where(r => s.Fields.Any(x => Same(x.Name, r) && x.IsHidden)).ToList();
                 if (missing.Count > 0)
                     f.Add(new(Severity.Fail, $"\"{s.Name}\" is missing {Join(missing)}. It has {Join(s.Fields.Where(x => !x.IsHidden).Select(x => x.Name))}."));
                 if (hidden.Count > 0)

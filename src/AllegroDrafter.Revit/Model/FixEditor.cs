@@ -233,10 +233,20 @@ internal static class FixEditor
         var schedule = RevitLookup.FindSchedule(doc, sort.Schedule) ?? throw new InvalidOperationException($"Schedule \"{sort.Schedule}\" not found.");
         var d = schedule.Definition;
         d.ClearSortGroupFields();
-        foreach (var name in sort.SortBy)
+        for (var i = 0; i < sort.SortBy.Count; i++)
         {
+            var name = sort.SortBy[i];
             var id = d.GetFieldOrder().First(f => d.GetField(f).GetName() == name);
-            d.AddSortGroupField(new ScheduleSortGroupField(id, ScheduleSortOrder.Ascending));
+            var field = new ScheduleSortGroupField(id, ScheduleSortOrder.Ascending);
+            if (i == 0 && sort.GroupHeaders is bool headers)
+            {
+                field.ShowHeader = headers;
+                field.ShowFooter = headers;
+                field.ShowFooterCount = headers;
+                field.ShowFooterTitle = headers;
+                field.ShowBlankLine = headers;
+            }
+            d.AddSortGroupField(field);
         }
         if (sort.Itemized is bool itemized) d.IsItemized = itemized;
     }

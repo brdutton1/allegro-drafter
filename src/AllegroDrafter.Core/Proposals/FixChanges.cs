@@ -78,8 +78,12 @@ public sealed record CreateSharedParameterChange(string Name, string DataType, I
     public override int GetHashCode() => HashCode.Combine(Name, DataType, Categories.Count);
 }
 
-/// <summary>Replaces a schedule's sort/group order, and optionally turns itemizing on or off.</summary>
-public sealed record ScheduleSortChange(string Schedule, IReadOnlyList<string> SortBy, bool? Itemized = null) : ProposalChange
+/// <summary>
+/// Replaces a schedule's sort/group order, and optionally turns itemizing on or off.
+/// GroupHeaders puts a header row (the first field's value, e.g. "3080") and a footer
+/// with the count above and below each group: order by the header, install by the lines.
+/// </summary>
+public sealed record ScheduleSortChange(string Schedule, IReadOnlyList<string> SortBy, bool? Itemized = null, bool? GroupHeaders = null) : ProposalChange
 {
     public override string Describe()
     {
@@ -90,13 +94,19 @@ public sealed record ScheduleSortChange(string Schedule, IReadOnlyList<string> S
             false => "; one row per group, with Count",
             null => "",
         };
-        return $"Schedule \"{Schedule}\": {sort}{rows}";
+        var groups = GroupHeaders switch
+        {
+            true => $"; a header and a count for each \"{SortBy[0]}\"",
+            false => "; no group headers",
+            null => "",
+        };
+        return $"Schedule \"{Schedule}\": {sort}{rows}{groups}";
     }
 
     public bool Equals(ScheduleSortChange? other) =>
-        other is not null && Schedule == other.Schedule && Itemized == other.Itemized && SortBy.SequenceEqual(other.SortBy);
+        other is not null && Schedule == other.Schedule && Itemized == other.Itemized && GroupHeaders == other.GroupHeaders && SortBy.SequenceEqual(other.SortBy);
 
-    public override int GetHashCode() => HashCode.Combine(Schedule, Itemized, SortBy.Count);
+    public override int GetHashCode() => HashCode.Combine(Schedule, Itemized, GroupHeaders, SortBy.Count);
 }
 
 /// <summary>

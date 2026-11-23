@@ -214,7 +214,7 @@ public class SetAuditorTests
         };
         var r = Check(facts, "schedules");
         Assert.Equal(CheckStatus.Fail, r.Status);
-        Assert.Contains(r.Findings, x => x.Message.Contains("\"DOOR SCHEDULE\" is missing Type Mark, Count, Tempered"));
+        Assert.Contains(r.Findings, x => x.Message.Contains("\"DOOR SCHEDULE\" is missing Type Mark, Count, From Room: Name, To Room: Name, Tempered"));
         Assert.Contains(r.Findings, x => x.Message.Contains("\"WINDOW SCHEDULE\" is missing Type Mark, Count, Tempered, Egress"));
         Assert.Contains(r.Findings, x => x.Message.Contains("sorts by \"Type\" first"));
         Assert.Contains(r.Findings, x => x.Message.Contains("sorts by nothing first"));
@@ -227,7 +227,7 @@ public class SetAuditorTests
         {
             Schedules =
             {
-                Schedule("DOOR SCHEDULE", "doors", new[] { "Type Mark", "Count", "Width", "Height", "Door Swing", "Tempered" }),
+                Schedule("DOOR SCHEDULE", "doors", new[] { "Type Mark", "Count", "From Room: Name", "To Room: Name", "Width", "Height", "Door Swing", "Tempered" }),
                 Schedule("WINDOW SCHEDULE", "windows", new[] { "Type Mark", "Count", "Width", "Height", "Tempered", "Egress" }),
             },
         };
@@ -492,6 +492,37 @@ public class SetAuditorTests
         Assert.Equal(2, r.FindingCount);
         Assert.Contains(r.Findings, x => x.Severity == Severity.Fail && x.Message.Contains("Section 13") && x.Message.Contains("at 3/32\" = 1'-0\""));
         Assert.Contains(r.Findings, x => x.Severity == Severity.Warn && x.Message.Contains("HOUSE ROOF PLAN") && x.Message.Contains("3/16\""));
+    }
+
+    [Fact]
+    public void Door_schedule_one_line_per_door_with_group_counts_needs_no_count_column()
+    {
+        var fields = new[] { "Type Mark", "From Room: Name", "To Room: Name", "Width", "Height", "Door Swing", "Tempered" };
+        ScheduleFact Doors(bool itemized, bool counts) =>
+            new("DOOR SCHEDULE", "doors", false, itemized, fields.Select(f => new ScheduleFieldFact(f, false)).ToList(),
+                new[] { "Type Mark", "From Room: Name" }, new[] { "CS" }, counts);
+        var window = Schedule("WINDOW SCHEDULE", "windows", new[] { "Type Mark", "Count", "Tempered", "Egress" });
+
+        var ok = Check(new SetFacts { Schedules = { Doors(itemized: true, counts: true), window } }, "schedules");
+        Assert.Equal(CheckStatus.Pass, ok.Status);
+
+        var noFooter = Check(new SetFacts { Schedules = { Doors(itemized: true, counts: false), window } }, "schedules");
+        Assert.Contains(noFooter.Findings, f => f.Message.Contains("missing Count"));
+    }
+
+    [Fact]
+    public void Door_schedule_needs_from_and_to_room()
+    {
+        var facts = new SetFacts
+        {
+            Schedules =
+            {
+                Schedule("DOOR SCHEDULE", "doors", new[] { "Type Mark", "Count", "Door Swing", "Tempered" }),
+                Schedule("WINDOW SCHEDULE", "windows", new[] { "Type Mark", "Count", "Tempered", "Egress" }),
+            },
+        };
+        var r = Check(facts, "schedules");
+        Assert.Contains(r.Findings, f => f.Message.Contains("missing From Room: Name, To Room: Name"));
     }
 
     // ------------------------------------------------------------ wall-function

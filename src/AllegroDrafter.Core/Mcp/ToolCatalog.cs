@@ -285,14 +285,15 @@ public static class ToolCatalog
             """, ReadOnly: false),
 
         new ToolDefinition(ToolNames.ProposeScheduleSort, "Propose schedule sorting",
-            "Proposes the sort/group order of a schedule (replaces the current order), and optionally itemized on/off. Door/window schedules: sortBy [\"Type Mark\", \"Door Swing\"] with itemized false gives one row per size code with a Count. Every sortBy field must already be a column; add missing ones first with propose_schedule_fields and wait for approval. Nothing changes until the designer approves.",
+            "Proposes the sort/group order of a schedule (replaces the current order), itemized on/off, and group headers. Office door schedule: sortBy [\"Type Mark\", \"From Room: Name\"], itemized true, groupHeaders true gives a size-code header with a count and one line per door below it. itemized false gives one row per size code with a Count. Every sortBy field must already be a column; add missing ones first with propose_schedule_fields and wait for approval. Nothing changes until the designer approves.",
             $$"""
             { "type": "object", "required": ["title","schedules"], "properties": {
                 {{TitleRationale}},
                 "schedules": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["schedule","sortBy"], "properties": {
                     "schedule": { "type": "string", "description": "Exact schedule name from list_schedules." },
                     "sortBy": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Column names, first sort first." },
-                    "itemized": { "type": "boolean", "description": "Optional. false = one row per group with Count; true = one row per element." } },
+                    "itemized": { "type": "boolean", "description": "Optional. false = one row per group with Count; true = one row per element." },
+                    "groupHeaders": { "type": "boolean", "description": "Optional. true = a header row and a count footer for each value of the first sortBy field (use with itemized true)." } },
                   "additionalProperties": false } } },
               "additionalProperties": false }
             """, ReadOnly: false),
