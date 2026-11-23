@@ -29,7 +29,10 @@ public sealed class StatusCommand : IExternalCommand
             $"Add-in build: {build:g} (Revit {commandData.Application.Application.VersionNumber})\n" +
             $"MCP server: {server}\n" +
             $"Office standards: {profile}\n" +
-            $"Pending proposals: {app.Proposals.PendingCount}\n" +
+            $"Pending proposals: {app.Proposals.PendingCount}" +
+            (app.Proposals.RestoredCount > 0 ? $" ({app.Proposals.RestoredCount} restored from last session)" : "") + "\n" +
+            $"Proposals saved to: {app.Proposals.SavePath}\n" +
+            (app.Proposals.PersistenceWarning is null ? "" : $"WARNING: {app.Proposals.PersistenceWarning}\n") +
             $"Audit log: {app.Paths.AuditDir}";
         var claudeCode = $"claude mcp add --scope user allegro-drafter -- \"{bridge}\"";
         var claudeDesktop = $"\"allegro-drafter\": {{ \"command\": \"{bridge.Replace("\\", "\\\\")}\" }}";

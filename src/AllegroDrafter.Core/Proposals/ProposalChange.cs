@@ -156,6 +156,7 @@ public sealed record CalloutChange(
     string? TemplateName = null,
     int? Scale = null) : ProposalChange
 {
+    [JsonIgnore]
     public bool IsReference => ReferenceView is not null;
 
     public override string Describe() => IsReference

@@ -18,7 +18,16 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
 if (Get-Process -Name 'Revit' -ErrorAction SilentlyContinue) {
-    throw 'Close Revit first. It locks the add-in files while running.'
+    throw 'Close Revit first. It locks the add-in files while running. (Claude Code can stay open.)'
+}
+
+# The bridge holds no state, so stopping it is safe. Claude Code stays open and reconnects
+# with /mcp afterwards, keeping the conversation.
+$bridges = @(Get-Process -Name 'AllegroDrafter.Bridge' -ErrorAction SilentlyContinue)
+if ($bridges.Count -gt 0 -and -not $Uninstall) {
+    $bridges | Stop-Process -Force
+    Start-Sleep -Milliseconds 500
+    Write-Host "Paused the Claude connection ($($bridges.Count) bridge process) so it can be updated."
 }
 
 function Get-AddinsFolder([string] $year) { Join-Path $env:APPDATA "Autodesk\Revit\Addins\$year" }
@@ -83,13 +92,18 @@ if ($installed.Count -eq 0) { throw 'No supported Revit version found. Nothing i
 $bridge = Join-Path (Get-AddinsFolder $installed[0]) 'AllegroDrafter\AllegroDrafter.Bridge.exe'
 $escaped = $bridge.Replace('\', '\\')
 Write-Host ''
-Write-Host 'Done. Connect Claude:'
+& (Join-Path $PSScriptRoot 'setup-workspace.ps1')
+
 Write-Host ''
-Write-Host '  Claude Code (recommended): .\scripts\connect-claude.ps1 -ClaudeCode'
+Write-Host 'Done.'
+Write-Host ''
+Write-Host '  If Claude Code is already open: type /mcp, pick allegro-drafter, choose Reconnect.'
+Write-Host '  Same conversation, new tools. (If that fails: /exit, then double-click "Allegro Drafter" on the desktop.)'
+Write-Host ''
+Write-Host '  First time connecting Claude Code: .\scripts\connect-claude.ps1 -ClaudeCode'
 Write-Host "    (same as: claude mcp add --scope user allegro-drafter -- `"$bridge`")"
 Write-Host ''
-Write-Host '  Claude Desktop: quit it, then run .\scripts\connect-claude.ps1'
-Write-Host '    (or by hand: Settings > Developer > Edit Config, then inside "mcpServers" add:)'
-Write-Host "    `"allegro-drafter`": { `"command`": `"$escaped`" }"
+Write-Host '  Claude Desktop instead: quit it, then run .\scripts\connect-claude.ps1'
+Write-Host "    (by hand, inside `"mcpServers`": `"allegro-drafter`": { `"command`": `"$escaped`" })"
 Write-Host ''
-Write-Host 'Then start Revit, open the office template and click Allegro > Export Standards.'
+Write-Host '  Start or resume drafting: double-click "Allegro Drafter" on the desktop, with Revit open.'

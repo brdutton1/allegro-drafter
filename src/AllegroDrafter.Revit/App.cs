@@ -32,7 +32,7 @@ public sealed class App : IExternalApplication
         Instance = this;
         Paths = new AppPaths(Environment.GetEnvironmentVariable("ALLEGRO_DRAFTER_HOME"));
         Paths.EnsureCreated();
-        Proposals = new ProposalStore();
+        Proposals = new ProposalStore(savePath: Paths.ProposalsFile);
         Standards = new StandardsStore(Paths);
         Audit = new AuditLog(Paths);
         Dispatcher = new RevitDispatcher();

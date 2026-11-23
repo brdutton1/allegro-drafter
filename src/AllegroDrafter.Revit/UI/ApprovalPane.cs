@@ -98,6 +98,7 @@ internal sealed class ApprovalPane : UserControl
         var server = _app.Server?.IsRunning == true ? "Claude connection ready" : "Claude connection DOWN (see Allegro > Status)";
         var standards = _app.Standards.Current is { } s ? $"standards: {s.SourceDocument}" : "no office standards loaded";
         _statusLine.Text = $"{server} · {standards} · {_app.Proposals.PendingCount} pending";
+        if (_app.Proposals.PersistenceWarning is { } warning) _statusLine.Text += $"\n{warning}";
     }
 
     private UIElement Card(Proposal p)

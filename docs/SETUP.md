@@ -209,6 +209,19 @@ Ask Claude: **"Fix the audit."** It works in batches. Each one waits in the pane
 
 Text heights and the wall legend are office template decisions. The audit reports them, but Claude doesn't patch them per project.
 
+## Drafting sessions and crashes
+
+`install.ps1` creates a drafting workspace at `%USERPROFILE%\AllegroDrafting` and an **Allegro Drafter** shortcut on the desktop.
+
+- **Always start Claude Code from the shortcut.** It opens in the workspace and runs `claude --continue`, so you land back in your last conversation.
+- The workspace's `CLAUDE.md` makes Claude keep `DRAFTING-LOG.md`: every decision (numbering rule, per-door vs per-type, finish codes), every proposal and its outcome, and a checkpoint at the end of each phase. A brand-new conversation reads it first, so nothing gets asked twice.
+- **Pending proposals are saved to disk** (`%APPDATA%\AllegroDrafter\proposals.json`) after every change. Reopen Revit and they're back in the Approvals pane.
+- If Revit dies while applying a batch, Revit rolls that batch back. It comes back as **Failed** with a note. Check the model, then Retry or Reject. It is never re-applied on its own.
+
+**After a crash:** open Revit and your project, then double-click **Allegro Drafter** on the desktop. That's it.
+
+**Updating without losing the conversation:** close Revit only (leave Claude Code open), run `git pull` and `.\scripts\install.ps1`, reopen Revit, then in Claude Code type `/mcp`, pick allegro-drafter, and choose **Reconnect**.
+
 ## Troubleshooting
 
 | Symptom | Fix |

@@ -15,6 +15,8 @@
 - [x] Proposals: create sheets, place views/legends/schedules (auto-arrange or exact), apply view templates
 - [x] Standards and model validation, one-transaction apply, double-click safe, retry on failure
 - [x] Audit log
+- [x] Pending proposals saved to disk; crash mid-apply comes back as Failed, never re-applied
+- [x] Drafting workspace with DRAFTING-LOG.md, resume shortcut, updates without closing Claude Code
 - [x] Automated tests on Core (113 after Phase 2); add-in compiles against Revit 2025 and 2026 APIs
 - [ ] First run inside Revit on a stripped copy of a finished job
 - [ ] Ribbon icons

@@ -26,6 +26,27 @@ public sealed class Proposal
         CreatedUtc = createdUtc;
     }
 
+    /// <summary>Rebuilds a proposal saved to disk by <see cref="ProposalStore"/>.</summary>
+    internal Proposal(ProposalRecord r)
+    {
+        Id = r.Id;
+        DocumentTitle = r.DocumentTitle;
+        Title = r.Title;
+        Rationale = r.Rationale;
+        Changes = r.Changes.ToList();
+        CreatedUtc = r.CreatedUtc;
+        Status = r.Status;
+        ResultMessage = r.ResultMessage;
+        CreatedElementIds = r.CreatedElementIds.ToList();
+        ResolvedUtc = r.ResolvedUtc;
+        ResolvedBy = r.ResolvedBy;
+        Attempts = r.Attempts;
+    }
+
+    internal ProposalRecord ToRecord() => new(
+        Id, DocumentTitle, Title, Rationale, Changes.ToList(), CreatedUtc, Status,
+        ResultMessage, CreatedElementIds.ToList(), ResolvedUtc, ResolvedBy, Attempts);
+
     public string Id { get; }
     public string DocumentTitle { get; }
     public string Title { get; }
@@ -44,3 +65,18 @@ public sealed class Proposal
     public bool CanReject => Status is ProposalStatus.Pending or ProposalStatus.Failed;
     public bool IsResolved => Status is ProposalStatus.Applied or ProposalStatus.Rejected;
 }
+
+/// <summary>On-disk shape of a proposal.</summary>
+public sealed record ProposalRecord(
+    string Id,
+    string DocumentTitle,
+    string Title,
+    string Rationale,
+    List<ProposalChange> Changes,
+    DateTime CreatedUtc,
+    ProposalStatus Status,
+    string? ResultMessage,
+    List<long> CreatedElementIds,
+    DateTime? ResolvedUtc,
+    string? ResolvedBy,
+    int Attempts);
