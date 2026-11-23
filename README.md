@@ -49,7 +49,12 @@ Runs in Revit 2026 on a real job: sheets, schedules, the set audit and its fixes
 | `propose_dimensions` | Exterior plan dimension strings: openings, wall jogs, overall |
 | `propose_callouts` | Detail callouts (new enlarged views) and reference callouts to standard details |
 | `propose_notes` | Text notes with leaders, office text types only |
+| `get_finish_plan` | Preview what the Finish Drafting button would do next (read-only) |
 | `list_proposals`, `get_proposal` | Check what you approved or rejected |
+
+## Finish Drafting
+
+**Allegro > Finish Drafting** runs the office rules on the open set, in order: wall types, parameters, size-code Type Marks, schedules, tempered and egress, room numbers and sizes, door swing, unplaced rooms, view templates, tags, cover sheet. One batch at a time. You approve or reject each one; rejecting skips that step. Anything a rule can't settle shows up as a question card with the choices on it. No AI runs inside the button.
 
 ## Get started
 

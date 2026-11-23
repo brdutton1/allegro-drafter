@@ -34,9 +34,6 @@ internal sealed class ApprovalPane : UserControl
     /// </summary>
     private static readonly TimeSpan ArmDelay = TimeSpan.FromSeconds(1.2);
 
-    /// <summary>Second click on a delete must come within this window.</summary>
-    private static readonly TimeSpan ConfirmWindow = TimeSpan.FromSeconds(6);
-
     private readonly List<Button> _arming = new();
     private readonly System.Windows.Threading.DispatcherTimer _armTimer;
 
@@ -62,6 +59,7 @@ internal sealed class ApprovalPane : UserControl
         DockPanel.SetDock(header, Dock.Top);
 
         var body = new StackPanel();
+        body.Children.Add(new FinishRunPanel(_app));
         body.Children.Add(_emptyState);
         body.Children.Add(_cards);
 
@@ -80,12 +78,21 @@ internal sealed class ApprovalPane : UserControl
         };
 
         _app.Proposals.Changed += (_, _) => Dispatcher.BeginInvoke(Refresh);
+        _app.Finish.Changed += (_, _) => Dispatcher.BeginInvoke(Refresh);
         Loaded += (_, _) => Refresh();
     }
 
     private void Refresh()
     {
         var proposals = _app.Proposals.List().OrderByDescending(p => p.CreatedUtc).ToList();
+        // During a run only the run's current batch is open, so nothing else can slide under the cursor.
+        var current = _app.Finish.IsRunning ? _app.Finish.CurrentProposalId : null;
+        var hidden = 0;
+        if (_app.Finish.IsRunning)
+        {
+            hidden = proposals.Count(p => p.Status == ProposalStatus.Pending && p.Id != current);
+            proposals = proposals.Where(p => p.Id == current || p.Status != ProposalStatus.Pending).ToList();
+        }
         var offset = _scroll.VerticalOffset;
         _armTimer.Stop();
         _arming.Clear();
@@ -98,7 +105,7 @@ internal sealed class ApprovalPane : UserControl
 
         var server = _app.Server?.IsRunning == true ? "Claude connection ready" : "Claude connection DOWN (see Allegro > Status)";
         var standards = _app.Standards.Current is { } s ? $"standards: {s.SourceDocument}" : "no office standards loaded";
-        _statusLine.Text = $"{server} · {standards} · {_app.Proposals.PendingCount} pending";
+        _statusLine.Text = $"{server} · {standards} · {_app.Proposals.PendingCount} pending" + (hidden > 0 ? $" ({hidden} hidden while Finish Drafting runs)" : "");
         if (_app.Proposals.PersistenceWarning is { } warning) _statusLine.Text += $"\n{warning}";
     }
 
@@ -161,24 +168,17 @@ internal sealed class ApprovalPane : UserControl
             if (p.CanApprove) _arming.Add(approve);
 
             var destructive = p.Changes.Where(c => c.IsDestructive).Select(c => c.Describe()).ToList();
-            DateTime? confirmStarted = null;
+            if (destructive.Count > 0) { approve.Content = label == "Approve" ? "Approve (deletes)" : label; approve.Foreground = FailedBrush; }
             approve.Click += async (_, _) =>
             {
-                if (destructive.Count > 0 && (confirmStarted is null || DateTime.UtcNow - confirmStarted > ConfirmWindow))
+                if (destructive.Count > 0)
                 {
-                    // Deletes take two clicks: the first one says what will be deleted.
-                    confirmStarted = DateTime.UtcNow;
-                    approve.Content = "Click again to DELETE";
-                    approve.Foreground = FailedBrush;
-                    approve.ToolTip = string.Join(Environment.NewLine, destructive);
-                    var reset = new System.Windows.Threading.DispatcherTimer { Interval = ConfirmWindow };
-                    reset.Tick += (_, _) =>
-                    {
-                        reset.Stop();
-                        if (approve.IsEnabled) { approve.Content = label; approve.ClearValue(ForegroundProperty); confirmStarted = null; }
-                    };
-                    reset.Start();
-                    return;
+                    // Deletes get their own confirm screen that says exactly what goes.
+                    var answer = MessageBox.Show(
+                        "This deletes:" + Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, destructive) +
+                        Environment.NewLine + Environment.NewLine + "Ctrl+Z brings them back. Delete them?",
+                        "Allegro Drafter: confirm delete", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                    if (answer != MessageBoxResult.Yes) return;
                 }
                 approve.IsEnabled = false; // Instant feedback. The store also blocks a second apply.
                 try

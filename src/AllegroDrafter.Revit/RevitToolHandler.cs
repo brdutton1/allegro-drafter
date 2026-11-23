@@ -65,6 +65,27 @@ internal sealed class RevitToolHandler : IToolHandler
                     var (_, report) = await _drafter.RunAuditAsync(only);
                     return ToolCallResult.Ok(report);
                 }
+                case ToolNames.GetFinishPlan:
+                {
+                    var (facts, report) = await _drafter.RunAuditAsync();
+                    var state = App.Instance?.Finish?.State ?? new Core.Finishing.FinishState();
+                    var step = Core.Finishing.FinishPlanner.Next(facts, report, _standards.Current, state);
+                    return ToolCallResult.Ok(step switch
+                    {
+                        Core.Finishing.FinishBatch b => (object)new
+                        {
+                            next = "batch", step = b.StepId, title = b.StepTitle, number = b.StepNumber, of = Core.Finishing.FinishPlanner.Steps.Count,
+                            batch = b.Request.Title, rationale = b.Request.Rationale, changes = b.Request.Changes.Select(c => c.Describe()).ToList(),
+                        },
+                        Core.Finishing.FinishQuestions q => new
+                        {
+                            next = "questions", step = q.StepId, title = q.StepTitle, number = q.StepNumber, of = Core.Finishing.FinishPlanner.Steps.Count,
+                            questions = q.Cards.Select(c => new { c.Id, c.Prompt, c.Options, c.Recommended, c.ElementId, c.AllowText }).ToList(),
+                        },
+                        Core.Finishing.FinishDone d => new { next = "done", remaining = d.Remaining },
+                        _ => new { next = "unknown" },
+                    });
+                }
                 case ToolNames.ListRooms:
                 {
                     var level = Args.OptionalString(args, "level", "arguments");

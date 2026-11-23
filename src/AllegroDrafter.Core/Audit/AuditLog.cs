@@ -63,5 +63,9 @@ public sealed class AuditLog
         }
     }
 
+    /// <summary>A line that isn't a proposal: Finish Drafting answers and run results.</summary>
+    public bool WriteNote(string what, string detail, string user) =>
+        Write(new AuditEntry(DateTime.UtcNow, user, "", "", what, "", "Note", detail, 0, Array.Empty<string>(), Array.Empty<long>()));
+
     public string? LastError { get; private set; }
 }

@@ -49,8 +49,12 @@ internal sealed class DrafterService
         return (facts, SetAuditor.Run(facts, settings, templates, only));
     }
 
-    /// <summary>Validates against standards and the live model, then queues it for the designer.</summary>
-    public async Task<ProposeOutcome> ProposeAsync(ProposalRequest request)
+    /// <summary>
+    /// Validates against standards and the live model, then queues it for the designer.
+    /// dropEmpty (Finish Drafting): tag and dimension changes with nothing to place are dropped
+    /// instead of refusing the batch. A batch left empty comes back unqueued with no errors.
+    /// </summary>
+    public async Task<ProposeOutcome> ProposeAsync(ProposalRequest request, bool dropEmpty = false)
     {
         var standardsErrors = ProposalValidator.Validate(request, _standards.Current);
         if (standardsErrors.Count > 0) return new ProposeOutcome(null, standardsErrors);
@@ -58,9 +62,18 @@ internal sealed class DrafterService
         var (documentTitle, modelErrors, labeled) = await _dispatcher.InvokeAsync(app =>
         {
             var doc = RequireProject(app);
-            return (doc.Title, ModelChecker.Check(doc, request.Changes, _standards.Current?.Manual.Audit), ModelChecker.Annotate(doc, request.Changes));
+            var changes = request.Changes;
+            if (dropEmpty)
+            {
+                changes = ModelChecker.Annotate(doc, changes)
+                    .Where(c => c is not TagViewChange { ExpectedCount: 0 } && c is not DimensionViewChange { ExpectedStrings: 0 })
+                    .ToList();
+                if (changes.Count == 0) return (doc.Title, new List<string>(), (IReadOnlyList<ProposalChange>)changes);
+            }
+            return (doc.Title, ModelChecker.Check(doc, changes, _standards.Current?.Manual.Audit), ModelChecker.Annotate(doc, changes));
         });
         if (modelErrors.Count > 0) return new ProposeOutcome(null, modelErrors);
+        if (labeled.Count == 0) return new ProposeOutcome(null, Array.Empty<string>());
 
         var proposal = _proposals.Add(documentTitle, request with { Changes = labeled });
         _onNewProposal();

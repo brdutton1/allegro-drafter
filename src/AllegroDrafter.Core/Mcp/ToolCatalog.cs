@@ -131,6 +131,12 @@ public static class ToolCatalog
               "additionalProperties": false }
             """, ReadOnly: true),
 
+        new ToolDefinition(ToolNames.GetFinishPlan, "Preview Finish Drafting",
+            "Read-only. What the Finish Drafting button would do next on this model: the step, and the exact batch it would queue or the questions it would ask. Uses the live run's answers if a run is going in Revit. Changes nothing. The designer runs it from Allegro > Finish Drafting.",
+            """
+            { "type": "object", "properties": {}, "additionalProperties": false }
+            """, ReadOnly: true),
+
         new ToolDefinition(ToolNames.AuditSet, "Audit the plan set",
             "Read-only punch list before issue. Checks size-code Type Marks against door/window sizes, operation codes, door/window schedules (Type Mark, Count, swing, tempered, egress), tags, wall legend vs modeled walls, sheet numbers and index, view scales, text heights (1/8\" min), rooms, view templates, bedroom egress (R310), tempered glazing candidates (R308.4), hand-typed detail references and the cover sheet. Returns pass/warn/fail per check with element ids. Changes nothing. Rules come from get_standards manual.audit.",
             """

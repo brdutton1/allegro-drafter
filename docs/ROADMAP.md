@@ -66,7 +66,9 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 - [x] `wall-function` gate and `propose_wall_function` (interior wall types set to Exterior made interior doors read as exterior)
 - [x] Undo awareness: Ctrl+Z on a proposal marks it Undone, redo marks it Applied
 - [x] Text heights show the real size when just under 1/8"; Tempered = No with a reason in Comments clears the warning
-- [ ] One-command "make it permit-ready" run that walks the fix batches in order (now the Finish Drafting button, [ADR 0001](adr/0001-finish-drafting.md))
+- [x] Finish Drafting button ([ADR 0001](adr/0001-finish-drafting.md)): rules-only planner (11 steps), run loop, run panel with question cards and Show, one batch visible at a time, delete confirm screen, `get_finish_plan` preview tool. Built, not yet run in Revit
+- [ ] First full Finish Drafting run on 25-0083; spot-check door handing and lock the convention in `manual.audit`
+- [ ] Door schedule group headers with a count per size code (built; needs the install)
 - [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area
 - [ ] Dimension strings close to their overall, no gaps
 - [ ] Bearing walls stack between levels

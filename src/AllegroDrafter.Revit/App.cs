@@ -24,6 +24,7 @@ public sealed class App : IExternalApplication
     internal AuditLog Audit { get; private set; } = null!;
     internal RevitDispatcher Dispatcher { get; private set; } = null!;
     internal DrafterService Drafter { get; private set; } = null!;
+    internal Finishing.FinishRun Finish { get; private set; } = null!;
     internal McpConfig? Config { get; private set; }
     internal McpHttpServer? Server { get; private set; }
     internal string? ServerError { get; private set; }
@@ -38,6 +39,7 @@ public sealed class App : IExternalApplication
         Audit = new AuditLog(Paths);
         Dispatcher = new RevitDispatcher();
         Drafter = new DrafterService(Dispatcher, Proposals, Standards, ShowPaneSoon);
+        Finish = new Finishing.FinishRun(this);
 
         var pane = new ApprovalPane(this);
         application.RegisterDockablePane(PaneId, "Allegro Drafter", new ApprovalPaneProvider(pane));
@@ -160,6 +162,8 @@ public sealed class App : IExternalApplication
         PushButtonData Button(string name, string text, Type command, string tooltip) =>
             new(name, text, assembly, command.FullName) { ToolTip = tooltip };
 
+        panel.AddItem(Button("AllegroFinishDrafting", "Finish\nDrafting", typeof(FinishDraftingCommand),
+            "Run the office rules on this set, one batch at a time. You approve every batch and answer what the rules can't settle."));
         panel.AddItem(Button("AllegroApprovals", "Approvals", typeof(ShowApprovalsCommand),
             "Open the Allegro Drafter pane to approve or reject what the AI proposed."));
         panel.AddItem(Button("AllegroExportStandards", "Export\nStandards", typeof(ExportStandardsCommand),
