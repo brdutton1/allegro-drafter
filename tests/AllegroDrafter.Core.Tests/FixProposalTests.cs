@@ -193,6 +193,36 @@ public class FixProposalTests
         Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeRoomCleanup, """{ "title": "t", "roomIds": [1], "allUnplaced": true }"""));
     }
 
+    // ---------------------------------------------------------- wall function
+
+    [Fact]
+    public void Wall_functions_parse_and_normalize()
+    {
+        var r = Parse(ToolNames.ProposeWallFunction, """
+            { "title": "Interior walls", "wallTypes": [
+                { "typeName": "Basic Wall: Interior 2x6 Wall (INSULATION)", "function": "interior" },
+                { "typeName": "Basic Wall: Shaft", "function": "Core Shaft" } ] }
+            """);
+        Assert.Equal(new SetWallFunctionChange("Basic Wall: Interior 2x6 Wall (INSULATION)", "Interior"), r.Changes[0]);
+        Assert.Equal("CoreShaft", ((SetWallFunctionChange)r.Changes[1]).Function);
+        Assert.False(r.Changes[0].IsDestructive);
+        Assert.Equal("Wall type \"Basic Wall: Interior 2x6 Wall (INSULATION)\" (42 walls): Function Exterior -> Interior",
+            new SetWallFunctionChange("Basic Wall: Interior 2x6 Wall (INSULATION)", "Interior", "Exterior", 42).Describe());
+    }
+
+    [Fact]
+    public void Wall_functions_refuse_bad_input()
+    {
+        Assert.Throws<ToolArgumentException>(() => Parse(ToolNames.ProposeWallFunction,
+            """{ "title": "t", "wallTypes": [ { "typeName": "Basic Wall: X", "function": "Inside" } ] }"""));
+        var errors = Validate(ToolNames.ProposeWallFunction, """
+            { "title": "t", "wallTypes": [
+                { "typeName": "Basic Wall: X", "function": "Interior" },
+                { "typeName": "Basic Wall: X", "function": "Exterior" } ] }
+            """);
+        Assert.Contains(errors, e => e.StartsWith("Change 2:") && e.Contains("more than once"));
+    }
+
     [Fact]
     public void Only_deletes_need_the_second_click()
     {
@@ -215,10 +245,12 @@ public class FixProposalTests
             new CreateSharedParameterChange("Tempered", "yesno", new[] { "doors", "windows" }),
             new ScheduleSortChange("DOOR SCHEDULE", new[] { "Type Mark", "Door Swing" }, false),
             new DeleteRoomsChange(new long[] { 1, 2 }, true, "CARPET x2"),
+            new SetWallFunctionChange("Basic Wall: Interior 2x6 Wall (INSULATION)", "Interior", "Exterior", 42),
         };
         var json = JsonSerializer.Serialize<IReadOnlyList<ProposalChange>>(changes, Json.Indented);
         Assert.Contains("\"kind\": \"setTypeMark\"", json);
         Assert.Contains("\"kind\": \"deleteRooms\"", json);
+        Assert.Contains("\"kind\": \"setWallFunction\"", json);
         var back = JsonSerializer.Deserialize<List<ProposalChange>>(json, Json.Indented)!;
         Assert.Equal(changes, back);
     }
@@ -226,7 +258,7 @@ public class FixProposalTests
     [Fact]
     public void Fix_tools_are_proposal_tools_in_the_catalog()
     {
-        foreach (var name in new[] { ToolNames.ProposeTypeMarks, ToolNames.ProposeParameters, ToolNames.ProposeScheduleSort, ToolNames.ProposeRoomCleanup })
+        foreach (var name in new[] { ToolNames.ProposeTypeMarks, ToolNames.ProposeParameters, ToolNames.ProposeScheduleSort, ToolNames.ProposeRoomCleanup, ToolNames.ProposeWallFunction })
         {
             var tool = ToolCatalog.Find(name);
             Assert.NotNull(tool);

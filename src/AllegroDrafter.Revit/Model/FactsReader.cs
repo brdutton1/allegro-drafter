@@ -166,7 +166,8 @@ internal static class FactsReader
                     fi.ToRoom?.Id.Value,
                     tags.Plan,
                     tags.Elevation,
-                    values));
+                    values,
+                    fi.Host is Wall host ? RevitLookup.TypeName(host.WallType) : null));
             }
         }
     }
@@ -211,10 +212,17 @@ internal static class FactsReader
 
     private static void ReadWalls(Document doc, SetFacts facts)
     {
-        facts.ModeledWallTypes = new FilteredElementCollector(doc).OfClass(typeof(Wall)).Cast<Wall>()
-            .Select(w => RevitLookup.TypeName(w.WallType))
-            .Distinct()
-            .OrderBy(n => n)
+        var walls = new FilteredElementCollector(doc).OfClass(typeof(Wall)).Cast<Wall>().ToList();
+        facts.ModeledWallTypes = walls.Select(w => RevitLookup.TypeName(w.WallType)).Distinct().OrderBy(n => n).ToList();
+        facts.WallTypes = walls
+            .GroupBy(w => w.WallType.Id)
+            .Select(g =>
+            {
+                var type = g.First().WallType;
+                var length = g.Sum(w => w.get_Parameter(BuiltInParameter.CURVE_ELEM_LENGTH)?.AsDouble() ?? 0);
+                return new WallTypeFact(RevitLookup.TypeName(type), type.Function.ToString(), type.Kind.ToString(), g.Count(), Math.Round(length, 1));
+            })
+            .OrderBy(t => t.Name)
             .ToList();
     }
 

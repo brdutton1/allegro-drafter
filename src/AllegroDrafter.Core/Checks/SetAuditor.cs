@@ -42,6 +42,7 @@ public static class SetAuditor
         new("schedules", "Door and window schedules report from Type Mark", Schedules),
         new("opening-parameters", "Doors and windows carry swing, tempered and egress values", OpeningParameters),
         new("tags", "Every door and window is tagged on a sheet", Tags),
+        new("wall-function", "Wall types have the right Function (interior vs exterior)", WallFunction),
         new("wall-legend", "Wall legend matches the walls in the model", WallLegend),
         new("sheets", "Sheet numbers, names and sheet index", Sheets),
         new("view-scales", "Plans, elevations and sections are at a readable scale", ViewScales),
@@ -326,6 +327,53 @@ public static class SetAuditor
         }
         return Make(c, "view-scales", f, $"Every placed plan, elevation and section is {ScaleLabel(c.Settings.PreferredScaleDenominator)} or larger.");
     }
+
+    /// <summary>
+    /// An opening is exterior only when its host wall type is Function = Exterior. So a wrong
+    /// Function poisons the tags check, elevation tagging and exterior dimensions. This finds it.
+    /// </summary>
+    private static CheckResult WallFunction(Ctx c)
+    {
+        if (c.Facts.WallTypes.Count == 0) return Skip("wall-function", "No wall types were read from the model.");
+        var f = new List<Finding>();
+        var flagged = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var t in c.Facts.WallTypes.Where(t => t.Kind != "Stacked").OrderBy(t => t.Name))
+        {
+            var typeName = t.Name.Split(": ", 2).Last();
+            var interior = HasWord(typeName, c.Settings.InteriorWallKeywords);
+            var exterior = HasWord(typeName, c.Settings.ExteriorWallKeywords);
+            if (interior == exterior) continue; // neither, or both: the name doesn't say
+            var where = $"Wall type \"{t.Name}\" ({Plural(t.InstanceCount, "wall")}, {Math.Round(t.LengthFeet)} ft)";
+            if (interior && Same(t.Function, "Exterior"))
+            {
+                flagged.Add(t.Name);
+                f.Add(new(Severity.Fail, $"{where} is named interior but its Function is Exterior. Every door and window in it reads as exterior, so tags, elevation tags and exterior dimensions get it wrong. Set Function to Interior.", Target: t.Name, Suggestion: "Interior"));
+            }
+            else if (exterior && Same(t.Function, "Interior"))
+            {
+                flagged.Add(t.Name);
+                f.Add(new(Severity.Fail, $"{where} is named exterior but its Function is Interior. Its doors and windows won't get elevation tags or exterior dimensions. Set Function to Exterior.", Target: t.Name, Suggestion: "Exterior"));
+            }
+        }
+
+        // An exterior opening with a room on both sides: the wall may be misclassified even if its name doesn't say.
+        foreach (var g in c.Facts.Openings
+                     .Where(o => o.IsExterior && o.FromRoomId is not null && o.ToRoomId is not null && o.FromRoomId != o.ToRoomId
+                                 && o.HostWallType is not null && !flagged.Contains(o.HostWallType))
+                     .GroupBy(o => o.HostWallType!)
+                     .OrderBy(g => g.Key))
+        {
+            var list = g.OrderBy(o => o.Label).ToList();
+            f.Add(new(Severity.Warn,
+                $"{Plural(list.Count, "opening")} in \"{g.Key}\" (Function = Exterior) {(list.Count == 1 ? "has" : "have")} a room on both sides: {Join(list.Take(5).Select(o => o.Label))}{(list.Count > 5 ? ", ..." : "")}. If it's an interior wall, set its Function to Interior. A wall to a garage or porch room can be right as is.",
+                list[0].ElementId, Target: g.Key));
+        }
+        return Make(c, "wall-function", f, $"{Plural(c.Facts.WallTypes.Count, "wall type")}. Every Function matches what the name says, and no exterior opening has rooms on both sides.");
+    }
+
+    private static bool HasWord(string text, IEnumerable<string> words) =>
+        words.Any(w => !string.IsNullOrWhiteSpace(w)
+                       && Regex.IsMatch(text, $@"(?<![A-Za-z]){Regex.Escape(w.Trim())}(?![A-Za-z])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
 
     private static CheckResult TextHeights(Ctx c)
     {

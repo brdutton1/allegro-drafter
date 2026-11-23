@@ -15,6 +15,7 @@ public sealed class SetFacts
     public List<RoomFact> Rooms { get; set; } = new();
     public List<LegendFact> Legends { get; set; } = new();
     public List<string> ModeledWallTypes { get; set; } = new();
+    public List<WallTypeFact> WallTypes { get; set; } = new();
     public List<AnnotationTypeUsage> AnnotationTypes { get; set; } = new();
     public List<TextFact> Texts { get; set; } = new();
 
@@ -67,7 +68,8 @@ public sealed record OpeningFact(
     long? ToRoomId,
     bool TaggedInPlacedPlan,
     bool TaggedInPlacedElevation,
-    IReadOnlyDictionary<string, string?> Parameters)
+    IReadOnlyDictionary<string, string?> Parameters,
+    string? HostWallType = null)
 {
     /// <summary>The room a window serves: inside of an exterior wall is usually ToRoom.</summary>
     public long? ServedRoomId => ToRoomId ?? FromRoomId;
@@ -80,6 +82,12 @@ public sealed record OpeningFact(
 
 /// <param name="State">"placed", "unplaced", "not enclosed" (or redundant).</param>
 public sealed record RoomFact(long ElementId, string Number, string Name, string? Level, double AreaSqFt, string State, bool HasWetFixture);
+
+/// <summary>A wall type with at least one wall in the model.</summary>
+/// <param name="Name">"Basic Wall: Interior 2x6 Wall (INSULATION)".</param>
+/// <param name="Function">Revit's type Function: Interior, Exterior, Foundation, Retaining, Soffit, CoreShaft.</param>
+/// <param name="Kind">Basic, Curtain or Stacked.</param>
+public sealed record WallTypeFact(string Name, string Function, string Kind, int InstanceCount, double LengthFeet);
 
 public sealed record LegendFact(string Name, IReadOnlyList<string> OnSheets, IReadOnlyList<string> WallTypes);
 

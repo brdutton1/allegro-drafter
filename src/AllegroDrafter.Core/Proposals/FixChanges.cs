@@ -38,6 +38,29 @@ public sealed record SetTypeMarkChange(
 }
 
 /// <summary>
+/// Sets a wall type's Function (Interior, Exterior, ...). An opening counts as exterior
+/// only when its host wall type is Exterior, so this decides which doors and windows get
+/// elevation tags and exterior dimensions. Changes every wall of the type.
+/// </summary>
+/// <param name="TypeName">"Basic Wall: Interior 2x6 Wall (INSULATION)", exactly as audit_set reports it.</param>
+public sealed record SetWallFunctionChange(
+    string TypeName,
+    string Function,
+    string? CurrentFunction = null,
+    int? InstanceCount = null) : ProposalChange
+{
+    /// <summary>Revit's WallFunction values, in the spelling the add-in expects.</summary>
+    public static readonly IReadOnlyList<string> Functions = new[] { "Interior", "Exterior", "Foundation", "Retaining", "Soffit", "CoreShaft" };
+
+    public override string Describe()
+    {
+        var count = InstanceCount is int n ? $" ({n} wall{(n == 1 ? "" : "s")})" : "";
+        var from = CurrentFunction ?? "?";
+        return $"Wall type \"{TypeName}\"{count}: Function {from} -> {Function}";
+    }
+}
+
+/// <summary>
 /// Adds an instance parameter to the project for the given categories, from the
 /// Allegro Drafter shared parameter file, so schedules and tags can use it.
 /// </summary>

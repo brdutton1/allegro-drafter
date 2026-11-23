@@ -182,6 +182,39 @@ internal static class FixEditor
         return names;
     }
 
+    // --------------------------------------------------------- Wall Function
+
+    public static WallType? FindWallType(Document doc, string typeName) =>
+        new FilteredElementCollector(doc).OfClass(typeof(WallType)).Cast<WallType>()
+            .FirstOrDefault(t => RevitLookup.TypeName(t) == typeName);
+
+    public static List<string> CheckWallFunction(Document doc, SetWallFunctionChange change)
+    {
+        var type = FindWallType(doc, change.TypeName);
+        if (type is null) return new() { $"No wall type named \"{change.TypeName}\". Use the exact name audit_set reports." };
+        if (type.Kind == WallKind.Stacked) return new() { $"\"{change.TypeName}\" is a stacked wall. Set Function on the wall types it stacks instead." };
+        if (!Enum.TryParse<WallFunction>(change.Function, out _)) return new() { $"\"{change.Function}\" isn't a Revit wall Function." };
+        var p = type.get_Parameter(BuiltInParameter.FUNCTION_PARAM);
+        if (p is null || p.IsReadOnly) return new() { $"\"{change.TypeName}\" doesn't let its Function be changed." };
+        return new();
+    }
+
+    public static SetWallFunctionChange Annotate(Document doc, SetWallFunctionChange change)
+    {
+        var type = FindWallType(doc, change.TypeName);
+        if (type is null) return change;
+        var count = new FilteredElementCollector(doc).OfClass(typeof(Wall)).Cast<Wall>().Count(w => w.WallType.Id == type.Id);
+        return change with { CurrentFunction = type.Function.ToString(), InstanceCount = count };
+    }
+
+    public static void ApplyWallFunction(Document doc, SetWallFunctionChange change)
+    {
+        var type = FindWallType(doc, change.TypeName) ?? throw new InvalidOperationException($"Wall type \"{change.TypeName}\" not found.");
+        var function = Enum.Parse<WallFunction>(change.Function);
+        var p = type.get_Parameter(BuiltInParameter.FUNCTION_PARAM) ?? throw new InvalidOperationException($"\"{change.TypeName}\" has no Function parameter.");
+        if (!p.Set((int)function)) throw new InvalidOperationException($"Revit refused Function = {change.Function} on \"{change.TypeName}\".");
+    }
+
     // --------------------------------------------------------- Schedule sort
 
     public static List<string> CheckSort(Document doc, ScheduleSortChange sort)

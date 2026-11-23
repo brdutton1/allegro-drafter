@@ -261,6 +261,10 @@ internal static class ModelChecker
                     errors.AddRange(FixEditor.CheckRooms(doc, rooms).Select(e => prefix + e));
                     break;
 
+                case SetWallFunctionChange wall:
+                    errors.AddRange(FixEditor.CheckWallFunction(doc, wall).Select(e => prefix + e));
+                    break;
+
                 default:
                     errors.Add(prefix + $"Unsupported change type {changes[i].GetType().Name}.");
                     break;
@@ -284,6 +288,7 @@ internal static class ModelChecker
                     => dims with { ExpectedStrings = Dimensioning.Plan(Dimensioning.Extract(doc, plan), dims).Strings.Count },
                 SetTypeMarkChange mark => FixEditor.Annotate(doc, mark),
                 DeleteRoomsChange rooms => FixEditor.Annotate(doc, rooms),
+                SetWallFunctionChange wall => FixEditor.Annotate(doc, wall),
                 _ => change,
             })
             .ToList();

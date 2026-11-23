@@ -21,6 +21,7 @@ namespace AllegroDrafter.Core.Proposals;
 [JsonDerivedType(typeof(CreateSharedParameterChange), "createSharedParameter")]
 [JsonDerivedType(typeof(ScheduleSortChange), "scheduleSort")]
 [JsonDerivedType(typeof(DeleteRoomsChange), "deleteRooms")]
+[JsonDerivedType(typeof(SetWallFunctionChange), "setWallFunction")]
 public abstract record ProposalChange
 {
     /// <summary>Plain-English line shown in the approval pane.</summary>

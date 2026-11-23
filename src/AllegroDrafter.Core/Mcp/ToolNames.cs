@@ -29,6 +29,7 @@ public static class ToolNames
     public const string ProposeParameters = "propose_parameters";
     public const string ProposeScheduleSort = "propose_schedule_sort";
     public const string ProposeRoomCleanup = "propose_room_cleanup";
+    public const string ProposeWallFunction = "propose_wall_function";
 
     public const string ListProposals = "list_proposals";
     public const string GetProposal = "get_proposal";
@@ -44,7 +45,7 @@ public static class ToolNames
         ProposeSheets, ProposeSheetSet, ProposePlaceViews, ProposeViewTemplates,
         ProposeSchedules, ProposeParameterValues,
         ProposeTags, ProposeCallouts, ProposeNotes, ProposeDimensions, ProposeScheduleFields,
-        ProposeTypeMarks, ProposeParameters, ProposeScheduleSort, ProposeRoomCleanup,
+        ProposeTypeMarks, ProposeParameters, ProposeScheduleSort, ProposeRoomCleanup, ProposeWallFunction,
     };
 
     /// <summary>Categories a new shared parameter may be bound to.</summary>

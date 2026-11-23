@@ -30,6 +30,7 @@ public static class ProposalRequestParser
             ToolNames.ProposeParameters => FixRequestParser.Parameters(args),
             ToolNames.ProposeScheduleSort => FixRequestParser.ScheduleSort(args),
             ToolNames.ProposeRoomCleanup => FixRequestParser.RoomCleanup(args),
+            ToolNames.ProposeWallFunction => FixRequestParser.WallFunctions(args),
             _ => throw new ToolArgumentException($"'{toolName}' is not a proposal tool."),
         };
         return new ProposalRequest(title, rationale, changes);

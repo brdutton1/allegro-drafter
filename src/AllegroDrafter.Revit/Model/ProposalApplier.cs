@@ -34,7 +34,7 @@ internal static class ProposalApplier
         var drawingNotes = new List<string>();
         int sheetCount = 0, placedCount = 0, templateCount = 0, scheduleCount = 0, elementCount = 0, valueCount = 0;
         int tagCount = 0, calloutCount = 0, noteCount = 0, dimensionCount = 0, columnEdits = 0;
-        int typeMarkCount = 0, parameterCount = 0, sortCount = 0, roomsDeleted = 0;
+        int typeMarkCount = 0, parameterCount = 0, sortCount = 0, roomsDeleted = 0, wallFunctionCount = 0;
 
         var name = $"Allegro Drafter: {proposal.Title}";
         using var transaction = new Transaction(doc, name.Length > 80 ? name[..80] : name);
@@ -201,6 +201,11 @@ internal static class ProposalApplier
                         roomsDeleted += FixEditor.ApplyRooms(doc, c);
                         break;
 
+                    case SetWallFunctionChange c:
+                        FixEditor.ApplyWallFunction(doc, c);
+                        wallFunctionCount++;
+                        break;
+
                     default:
                         throw new InvalidOperationException($"Unsupported change {change.GetType().Name}.");
                 }
@@ -236,6 +241,7 @@ internal static class ProposalApplier
             if (parameterCount > 0) parts.Add($"{parameterCount} parameter(s) added");
             if (sortCount > 0) parts.Add($"sorting set on {sortCount} schedule(s)");
             if (roomsDeleted > 0) parts.Add($"{roomsDeleted} room(s) deleted");
+            if (wallFunctionCount > 0) parts.Add($"Function set on {wallFunctionCount} wall type(s)");
             if (parts.Count == 0) parts.Add("Nothing needed changing");
             var message = string.Join(", ", parts) + ".";
             if (autoPlace.Count > 0) message += " Auto-placed views are roughly arranged; adjust as needed.";

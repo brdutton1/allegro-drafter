@@ -143,6 +143,13 @@ public static class ProposalValidator
                         errors.Add(prefix + $"\"{sort.Schedule}\" is sorted more than once in this proposal.");
                     break;
 
+                case SetWallFunctionChange wall:
+                    if (!SetWallFunctionChange.Functions.Contains(wall.Function))
+                        errors.Add(prefix + $"Function \"{wall.Function}\" isn't a wall Function. Use {string.Join(", ", SetWallFunctionChange.Functions)}.");
+                    if (!scheduleNames.Add("wallFunction|" + wall.TypeName))
+                        errors.Add(prefix + $"\"{wall.TypeName}\" gets a Function more than once in this proposal.");
+                    break;
+
                 case DeleteRoomsChange:
                     if (!scheduleNames.Add("deleteRooms"))
                         errors.Add(prefix + "Room cleanup appears more than once in this proposal. Use one list.");

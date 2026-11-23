@@ -494,6 +494,73 @@ public class SetAuditorTests
         Assert.Contains(r.Findings, x => x.Severity == Severity.Warn && x.Message.Contains("HOUSE ROOF PLAN") && x.Message.Contains("3/16\""));
     }
 
+    // ------------------------------------------------------------ wall-function
+
+    [Fact]
+    public void Interior_wall_types_set_to_exterior_fail_with_a_fix()
+    {
+        var facts = new SetFacts
+        {
+            WallTypes =
+            {
+                new WallTypeFact("Basic Wall: Interior 2x6 Wall (INSULATION)", "Exterior", "Basic", 42, 310.4),
+                new WallTypeFact("Basic Wall: Exterior 2x6 Wall w/ Stone", "Exterior", "Basic", 64, 106.7),
+                new WallTypeFact("Basic Wall: Ext 2x6 Board and Batten", "Interior", "Basic", 10, 80),
+                new WallTypeFact("Basic Wall: 8\" Foundation Wall", "Foundation", "Basic", 12, 200),
+                new WallTypeFact("Basic Wall: Glass", "Exterior", "Basic", 2, 10),
+                // "Internal" and "Paint" don't count as the keyword "Int".
+                new WallTypeFact("Basic Wall: Internal Paint Test", "Exterior", "Basic", 1, 5),
+                new WallTypeFact("Stacked Wall: Interior Stack", "Exterior", "Stacked", 1, 5),
+            },
+        };
+        var r = Check(facts, "wall-function");
+        Assert.Equal(CheckStatus.Fail, r.Status);
+        Assert.Equal(2, r.FindingCount);
+        var interior = Assert.Single(r.Findings, f => f.Target == "Basic Wall: Interior 2x6 Wall (INSULATION)");
+        Assert.Equal("Interior", interior.Suggestion);
+        Assert.Contains("42 walls, 310 ft", interior.Message);
+        var exterior = Assert.Single(r.Findings, f => f.Target == "Basic Wall: Ext 2x6 Board and Batten");
+        Assert.Equal("Exterior", exterior.Suggestion);
+    }
+
+    [Fact]
+    public void Exterior_openings_with_rooms_on_both_sides_warn()
+    {
+        var facts = new SetFacts
+        {
+            WallTypes = { new WallTypeFact("Basic Wall: Party Wall", "Exterior", "Basic", 3, 40) },
+            Openings =
+            {
+                Opening(1, "doors", "Door 360", "Pocket: 2680", exterior: true, from: 10, to: 11) with { HostWallType = "Basic Wall: Party Wall" },
+                Opening(2, "doors", "Door 361", "Pocket: 2680", exterior: true, from: 12, to: 13) with { HostWallType = "Basic Wall: Party Wall" },
+                // A real exterior door: room on one side only.
+                Opening(3, "doors", "Door 414", "Supa 300: 3080", exterior: true, to: 10) with { HostWallType = "Basic Wall: Party Wall" },
+            },
+        };
+        var r = Check(facts, "wall-function");
+        var w = Assert.Single(r.Findings);
+        Assert.Equal(Severity.Warn, w.Severity);
+        Assert.Null(w.Suggestion);
+        Assert.Contains("2 openings in \"Basic Wall: Party Wall\"", w.Message);
+        Assert.DoesNotContain("Door 414", w.Message);
+    }
+
+    [Fact]
+    public void Wall_function_skips_without_wall_data_and_passes_when_clean()
+    {
+        Assert.Equal(CheckStatus.Skip, Check(new SetFacts(), "wall-function").Status);
+        var clean = new SetFacts { WallTypes = { new WallTypeFact("Basic Wall: Interior 2x4", "Interior", "Basic", 5, 50) } };
+        Assert.Equal(CheckStatus.Pass, Check(clean, "wall-function").Status);
+    }
+
+    [Fact]
+    public void Audit_set_schema_lists_every_check()
+    {
+        var schema = System.Text.Json.Nodes.JsonNode.Parse(AllegroDrafter.Core.Mcp.ToolCatalog.Find(AllegroDrafter.Core.Mcp.ToolNames.AuditSet)!.InputSchemaJson)!;
+        var ids = schema["properties"]!["checks"]!["items"]!["enum"]!.AsArray().Select(n => n!.GetValue<string>()).ToList();
+        Assert.Equal(SetAuditor.CheckIds, ids);
+    }
+
     // ------------------------------------------------------------- text-heights
 
     [Fact]

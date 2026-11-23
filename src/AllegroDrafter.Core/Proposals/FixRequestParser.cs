@@ -3,7 +3,7 @@ using AllegroDrafter.Core.Mcp;
 
 namespace AllegroDrafter.Core.Proposals;
 
-/// <summary>Parses the fix tools: propose_type_marks, propose_parameters, propose_schedule_sort, propose_room_cleanup.</summary>
+/// <summary>Parses the fix tools: propose_type_marks, propose_parameters, propose_schedule_sort, propose_room_cleanup, propose_wall_function.</summary>
 internal static class FixRequestParser
 {
     private static readonly string[] OpeningCategories = { "doors", "windows" };
@@ -67,6 +67,23 @@ internal static class FixRequestParser
             if (repeated.Count > 0) throw new ToolArgumentException($"{path}.sortBy lists \"{string.Join("\", \"", repeated)}\" more than once.");
             bool? itemized = item.ContainsKey("itemized") ? Args.OptionalBool(item, "itemized", path) : null;
             changes.Add(new ScheduleSortChange(Args.RequiredString(item, "schedule", path), sortBy, itemized));
+        }
+        return changes;
+    }
+
+    public static List<ProposalChange> WallFunctions(JsonObject args)
+    {
+        var list = Args.RequiredArray(args, "wallTypes", "arguments");
+        var changes = new List<ProposalChange>();
+        for (var i = 0; i < list.Count; i++)
+        {
+            var path = $"wallTypes[{i}]";
+            var item = Args.ObjectAt(list, i, "wallTypes");
+            var typeName = Args.RequiredString(item, "typeName", path).Trim();
+            var raw = Args.RequiredString(item, "function", path).Trim();
+            var function = SetWallFunctionChange.Functions.FirstOrDefault(f => string.Equals(f, raw.Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
+                ?? throw new ToolArgumentException($"{path}.function must be one of {string.Join(", ", SetWallFunctionChange.Functions)}.");
+            changes.Add(new SetWallFunctionChange(typeName, function));
         }
         return changes;
     }

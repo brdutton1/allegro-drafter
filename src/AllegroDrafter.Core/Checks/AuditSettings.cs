@@ -116,6 +116,17 @@ public sealed class AuditSettings
     /// <summary>Legends that list the wall types. Only the ones placed on a sheet are checked.</summary>
     public List<string> WallLegendNames { get; set; } = new() { "WALL LEGEND", "WALL LEGEND ICF" };
 
+    // ---- Wall Function ----
+
+    /// <summary>
+    /// Words in a wall type name that mean it's an interior wall. A type named like this
+    /// with Function = Exterior makes every door and window in it read as exterior. Whole words.
+    /// </summary>
+    public List<string> InteriorWallKeywords { get; set; } = new() { "Interior", "Int", "Partition" };
+
+    /// <summary>Words in a wall type name that mean it's an exterior wall.</summary>
+    public List<string> ExteriorWallKeywords { get; set; } = new() { "Exterior", "Ext" };
+
     /// <summary>Wall types that are modeling aids, not real walls, so they don't need a legend entry.</summary>
     public List<string> LegendExemptWallTypes { get; set; } = new();
 
