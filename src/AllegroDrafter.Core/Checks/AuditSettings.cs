@@ -99,6 +99,21 @@ public sealed class AuditSettings
     /// <summary>Door families whose handing reads backwards (found on a spot check). LH and RH swap for these.</summary>
     public List<string> HandingFlipFamilies { get; set; } = new();
 
+    /// <summary>Door schedule lists one line per door under a size-code header with a count (office layout).</summary>
+    public bool DoorScheduleOneLinePerDoor { get; set; } = true;
+
+    /// <summary>Window operations that count as an egress opening in a bedroom. Office rule: every bedroom casement.</summary>
+    public List<string> EgressOperations { get; set; } = new() { "CSMT" };
+
+    /// <summary>The sheet list placed on the cover as the sheet index.</summary>
+    public string SheetIndexSchedule { get; set; } = "DRAWING INDEX";
+
+    /// <summary>
+    /// Office template per kind of view, so Finish Drafting doesn't ask. NameContains is one of
+    /// FOUNDATION, FRAMING, SITE, ROOF, CEILING, STRUCTURAL, ELECTRICAL, or empty for the rest.
+    /// </summary>
+    public List<ViewTemplateRule> ViewTemplateRules { get; set; } = new();
+
     // ---- Egress (IRC R310) ----
 
     /// <summary>Room names that need an egress window. Case-insensitive regex.</summary>
@@ -177,3 +192,5 @@ public sealed class AuditSettings
 }
 
 public sealed record OperationKeyword(string Keyword, string Code);
+
+public sealed record ViewTemplateRule(string ViewType, string? NameContains, string Template);

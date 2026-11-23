@@ -171,6 +171,16 @@ internal static class FactsReader
                     tags.Elevation,
                     values,
                     fi.Host is Wall host ? RevitLookup.TypeName(host.WallType) : null));
+                if (key == "doors")
+                {
+                    var facing = fi.FacingOrientation;
+                    var hand = fi.HandOrientation;
+                    var outward = fi.Host is Wall w && w.WallType.Function == WallFunction.Exterior ? w.Orientation : null;
+                    facts.DoorGeometry.Add(new Core.Finishing.DoorGeometry(
+                        fi.Id.Value, RevitLookup.ElementLabel(fi), fi.Symbol.FamilyName,
+                        fi.Symbol.get_Parameter(BuiltInParameter.ALL_MODEL_TYPE_MARK)?.AsString(),
+                        facing.X, facing.Y, hand.X, hand.Y, outward?.X, outward?.Y));
+                }
             }
         }
     }
@@ -190,7 +200,10 @@ internal static class FactsReader
         {
             var state = r.Location is null ? "unplaced" : r.Area <= 0 ? "not enclosed" : "placed";
             var p = (r.Location as LocationPoint)?.Point;
-            facts.Rooms.Add(new RoomFact(r.Id.Value, r.Number ?? "", RevitLookup.RoomName(r), r.Level?.Name, Math.Round(r.Area, 1), state, wetRooms.Contains(r.Id.Value), p?.X, p?.Y));
+            var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            foreach (var name in new[] { settings.RoomSizeParameter, "Comments" })
+                if (r.LookupParameter(name) is { } param) values[name] = ParameterWriter.Read(param);
+            facts.Rooms.Add(new RoomFact(r.Id.Value, r.Number ?? "", RevitLookup.RoomName(r), r.Level?.Name, Math.Round(r.Area, 1), state, wetRooms.Contains(r.Id.Value), p?.X, p?.Y, values));
         }
     }
 
