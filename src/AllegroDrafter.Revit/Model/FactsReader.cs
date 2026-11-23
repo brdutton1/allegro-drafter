@@ -119,6 +119,7 @@ internal static class FactsReader
             var parameterNames = (key == "doors"
                     ? new[] { settings.SwingParameter, settings.TemperedParameter }
                     : new[] { settings.TemperedParameter, settings.EgressParameter })
+                .Concat(settings.TemperedReasonParameters)
                 .Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToList();
 
             var instances = new FilteredElementCollector(doc).OfCategory(category).WhereElementIsNotElementType()

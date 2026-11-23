@@ -337,7 +337,7 @@ public static class SetAuditor
             if (u.HeightInches is not double h)
                 f.Add(new(Severity.Warn, $"{where}: couldn't read its text height."));
             else if (h < min - 1e-6)
-                f.Add(new(Severity.Fail, $"{where} is {InchesLabel(h)} tall. Minimum is {InchesLabel(min)}."));
+                f.Add(new(Severity.Fail, $"{where} is {MeasuredInchesLabel(h, min)} tall. Minimum is {InchesLabel(min)}."));
         }
         return Make(c, "text-heights", f, $"All text and dimension types used on sheets are {InchesLabel(min)} or taller.");
     }
@@ -442,14 +442,14 @@ public static class SetAuditor
 
         foreach (var d in doors.OrderBy(d => d.Label))
         {
-            if (IsYes(d.Value(tempered))) continue;
+            if (IsYes(d.Value(tempered)) || IsDecidedNo(d, c.Settings)) continue;
             if (c.Settings.GlassDoorKeywords.Any(k => d.TypeKey.Contains(k, StringComparison.OrdinalIgnoreCase)))
-                f.Add(new(Severity.Fail, $"{d.Label} has glass but isn't marked {tempered} = Yes. Glazing in doors must be tempered (R308.4.1).", d.ElementId));
+                f.Add(new(Severity.Fail, $"{d.Label} has glass but isn't marked {tempered} = Yes{NoWithoutReason(d, c.Settings)}. Glazing in doors must be tempered (R308.4.1).", d.ElementId));
         }
 
         foreach (var w in c.Facts.Openings.Where(o => o.Category == "windows").OrderBy(o => o.Label))
         {
-            if (IsYes(w.Value(tempered)) || w.SillFeet is not double sill) continue;
+            if (IsYes(w.Value(tempered)) || IsDecidedNo(w, c.Settings) || w.SillFeet is not double sill) continue;
             var reasons = new List<string>();
 
             if (sill < 5.0 && w.X is double wx && w.Y is double wy)
@@ -464,7 +464,9 @@ public static class SetAuditor
                 reasons.Add($"over 9 sf with its sill under 18\" (R308.4.3)");
 
             if (reasons.Count > 0)
-                f.Add(new(Severity.Warn, $"{w.Label} may need tempered glass: {string.Join("; ", reasons)}. Confirm, then set {tempered} = Yes or leave a note why not.", w.ElementId));
+                f.Add(new(Severity.Warn, IsNo(w.Value(tempered))
+                    ? $"{w.Label} may need tempered glass: {string.Join("; ", reasons)}. It's set to {tempered} = No with no reason. Add why to {ReasonParameterLabel(c.Settings)}, or set it to Yes."
+                    : $"{w.Label} may need tempered glass: {string.Join("; ", reasons)}. Confirm, then set {tempered} = Yes, or set No and add why to {ReasonParameterLabel(c.Settings)}.", w.ElementId));
         }
         return Make(c, "tempered", f, $"Glass doors are marked {tempered}, and no window sits in a hazardous location unmarked. Stairs are not checked yet.");
     }
@@ -636,8 +638,38 @@ public static class SetAuditor
         return whole > 0 ? $"{whole} {rest}/{den}\"" : $"{rest}/{den}\"";
     }
 
+    /// <summary>
+    /// A measured height for a message. Exact 64ths read as fractions; anything else shows
+    /// the decimal so "1/8\"" never appears for a type that's really 0.120".
+    /// </summary>
+    public static string MeasuredInchesLabel(double inches, double reference)
+    {
+        if (Math.Abs(inches * 64 - Math.Round(inches * 64)) < 1e-4) return InchesLabel(inches);
+        var dec = inches.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) + "\"";
+        var near = InchesLabel(reference);
+        return InchesLabel(inches) == near
+            ? $"{dec} (just {(inches < reference ? "under" : "over")} {near})"
+            : dec;
+    }
+
     private static bool IsYes(string? value) =>
         value is not null && value.Trim().ToLowerInvariant() is "yes" or "y" or "true" or "1";
+
+    private static bool IsNo(string? value) =>
+        value is not null && value.Trim().ToLowerInvariant() is "no" or "n" or "false" or "0";
+
+    private static string? TemperedReason(OpeningFact o, AuditSettings s) =>
+        s.TemperedReasonParameters.Select(o.Value).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+
+    /// <summary>Tempered = No with a reason written down: the designer decided, the audit stops asking.</summary>
+    private static bool IsDecidedNo(OpeningFact o, AuditSettings s) =>
+        IsNo(o.Value(s.TemperedParameter)) && TemperedReason(o, s) is not null;
+
+    private static string NoWithoutReason(OpeningFact o, AuditSettings s) =>
+        IsNo(o.Value(s.TemperedParameter)) ? $" (it's No with no reason in {ReasonParameterLabel(s)})" : "";
+
+    private static string ReasonParameterLabel(AuditSettings s) =>
+        s.TemperedReasonParameters.Count == 0 ? "Comments" : string.Join(" or ", s.TemperedReasonParameters);
 
     private static bool IsExempt(string wallType, IEnumerable<string> exempt) =>
         exempt.Any(e => Same(e, wallType) || Same(e, wallType.Split(": ", 2).Last()));

@@ -512,6 +512,29 @@ public class SetAuditorTests
         Assert.Contains("\"3/32\" ALLEGRO ARCH\" (120 uses on sheets, e.g. in MAIN FLOOR PLAN) is 3/32\" tall. Minimum is 1/8\".", r.Findings[0].Message);
     }
 
+    [Fact]
+    public void Text_just_under_an_eighth_shows_the_real_size()
+    {
+        var facts = new SetFacts { AnnotationTypes = { new AnnotationTypeUsage("text", "1/8\" ARIAL TEXT", 0.12, 25, "sheet CS") } };
+        var r = Check(facts, "text-heights");
+        Assert.Equal(CheckStatus.Fail, r.Status);
+        Assert.Contains("is 0.120\" (just under 1/8\") tall. Minimum is 1/8\".", r.Findings[0].Message);
+    }
+
+    [Fact]
+    public void Text_at_exactly_an_eighth_passes()
+    {
+        var facts = new SetFacts { AnnotationTypes = { new AnnotationTypeUsage("text", "1/8\" ARIAL TEXT", 0.125, 25, "sheet CS") } };
+        Assert.Equal(CheckStatus.Pass, Check(facts, "text-heights").Status);
+    }
+
+    [Theory]
+    [InlineData(0.09375, 0.125, "3/32\"")]
+    [InlineData(0.12, 0.125, "0.120\" (just under 1/8\")")]
+    [InlineData(0.1, 0.125, "0.100\"")]
+    public void Labels_measured_inches(double inches, double reference, string expected) =>
+        Assert.Equal(expected, SetAuditor.MeasuredInchesLabel(inches, reference));
+
     // -------------------------------------------------------------------- rooms
 
     [Fact]
@@ -638,6 +661,53 @@ public class SetAuditorTests
         Assert.Contains(r.Findings, x => x.ElementId == 11 && x.Message.Contains("R308.4.5"));
         Assert.Contains(r.Findings, x => x.ElementId == 12 && x.Message.Contains("R308.4.3"));
         Assert.Equal(CheckStatus.Fail, r.Status);
+    }
+
+    [Fact]
+    public void Tempered_no_with_a_reason_is_a_decision()
+    {
+        Dictionary<string, string?> P(string? tempered, string? comments = null) =>
+            new() { ["Tempered"] = tempered, ["Egress"] = "No", ["Comments"] = comments };
+        var facts = new SetFacts
+        {
+            Openings =
+            {
+                Opening(2, "doors", "Door 556", "Pocket: 4080", x: 0, y: 0, w: 4, h: 8),
+                // All three sit next to door 556 with a low sill.
+                Opening(20, "windows", "Window 670", "Casement: 3050", x: 4, y: 0, sill: 2, parameters: P("No", "Closet 3' deep or less, R308.4.2 exception")),
+                Opening(21, "windows", "Window 671", "Casement: 3050", x: -4, y: 0, sill: 2, parameters: P("No")),
+                Opening(22, "windows", "Window 672", "Casement: 3050", x: 0, y: 4, sill: 2, parameters: P(null)),
+                // Glass door the designer exempted with a reason, and one with a bare No.
+                Opening(30, "doors", "Door 600", "Frameless Glass Door: 2680", x: 900, y: 900,
+                    parameters: new() { ["Door Swing"] = "LH", ["Tempered"] = "No", ["Comments"] = "Decorative glass, R308.4.1 exception" }),
+                Opening(31, "doors", "Door 601", "Frameless Glass Door: 2680", x: 950, y: 950),
+            },
+        };
+        var r = Check(facts, "tempered");
+        Assert.DoesNotContain(r.Findings, x => x.ElementId is 20 or 30);
+        Assert.Contains(r.Findings, x => x.ElementId == 21 && x.Message.Contains("set to Tempered = No with no reason. Add why to Tempered Reason or Comments"));
+        Assert.Contains(r.Findings, x => x.ElementId == 22 && x.Message.Contains("Confirm, then set Tempered = Yes"));
+        Assert.Contains(r.Findings, x => x.ElementId == 31 && x.Severity == Severity.Fail && x.Message.Contains("No with no reason"));
+    }
+
+    [Fact]
+    public void Tempered_reason_can_come_from_a_custom_parameter()
+    {
+        var settings = new AuditSettings { TemperedReasonParameters = new() { "Tempered Reason" } };
+        var facts = new SetFacts
+        {
+            Openings =
+            {
+                Opening(2, "doors", "Door 556", "Pocket: 4080", x: 0, y: 0, w: 4, h: 8),
+                Opening(20, "windows", "Window 670", "Casement: 3050", x: 4, y: 0, sill: 2,
+                    parameters: new() { ["Tempered"] = "No", ["Comments"] = "unrelated note", ["Tempered Reason"] = "Closet" }),
+                Opening(21, "windows", "Window 671", "Casement: 3050", x: -4, y: 0, sill: 2,
+                    parameters: new() { ["Tempered"] = "No", ["Comments"] = "unrelated note" }),
+            },
+        };
+        var r = Check(facts, "tempered", settings);
+        Assert.DoesNotContain(r.Findings, x => x.ElementId == 20);
+        Assert.Contains(r.Findings, x => x.ElementId == 21);
     }
 
     // --------------------------------------------------------------- references

@@ -52,6 +52,13 @@ public sealed class AuditSettings
     public string TemperedParameter { get; set; } = "Tempered";
     public string EgressParameter { get; set; } = "Egress";
 
+    /// <summary>
+    /// Where the designer writes why an opening is Tempered = No despite looking like a
+    /// hazardous location ("closet 3' deep or less"). First one with text wins. A No
+    /// with a reason is a decision and clears the warning; a No without one doesn't.
+    /// </summary>
+    public List<string> TemperedReasonParameters { get; set; } = new() { "Tempered Reason", "Comments" };
+
     // ---- Egress (IRC R310) ----
 
     /// <summary>Room names that need an egress window. Case-insensitive regex.</summary>
