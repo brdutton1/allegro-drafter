@@ -27,7 +27,7 @@ Three rules hold the whole thing together:
 
 ## Status
 
-Phase 1 (sheet builder) runs in Revit 2026. Phases 2 and 3 (schedules, tags, dimensions, callouts, notes) are built and compile against the real Revit 2025 and 2026 APIs. It has **not been run inside Revit yet**. See [docs/ROADMAP.md](docs/ROADMAP.md).
+Runs in Revit 2026 on a real job: sheets, schedules, the set audit and its fixes (Type Marks, Tempered/Egress, schedule columns and sort, room cleanup). Tags, dimensions, callouts and notes are built and compile against the Revit 2025 and 2026 APIs but haven't had a full real-job run yet. Next: the Finish Drafting button. See [docs/PRODUCT-PLAN.md](docs/PRODUCT-PLAN.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
 
 | Tool | What it does |
 |---|---|
@@ -36,13 +36,14 @@ Phase 1 (sheet builder) runs in Revit 2026. Phases 2 and 3 (schedules, tags, dim
 | `propose_sheet_set` | New sheets plus the views on them, one batch |
 | `propose_sheets`, `propose_place_views`, `propose_view_templates` | Smaller batches |
 | `list_schedules`, `list_elements`, `read_legend` | Read schedules, doors/windows/rooms with parameters, legend text |
-| `audit_set` | Read-only punch list before issue: size codes, schedules, tags, wall legend, sheets, scales, text height, rooms, templates, egress, tempered, typed references, cover sheet |
+| `audit_set` | Read-only punch list before issue: size codes, schedules, tags, wall Function, wall legend, sheets, scales, text height, rooms, templates, egress, tempered, typed references, cover sheet |
 | `propose_schedules` | Door, window, room and finish schedules from office schedules, placed on sheets |
 | `propose_schedule_fields` | Add, remove and position schedule columns (e.g. Mark on the door schedule) |
 | `propose_schedule_sort` | Sort/group a schedule (Type Mark, then swing) and turn itemizing on or off |
 | `propose_type_marks` | Size-code Type Marks on door and window types (`376` -> `3080`), checked against the real size |
 | `propose_parameters` | Add Yes/No or text instance parameters (Tempered, Egress) from the Allegro shared parameter file |
 | `propose_room_cleanup` | Delete unplaced and unenclosed rooms (placed rooms are refused) |
+| `propose_wall_function` | Set wall type Function (Interior/Exterior), which decides what counts as an exterior door or window |
 | `propose_parameter_values` | Marks, room names/numbers, finishes (finish codes enforced) |
 | `propose_tags` | Tag untagged doors, windows, rooms, walls in a view with office tag types |
 | `propose_dimensions` | Exterior plan dimension strings: openings, wall jogs, overall |

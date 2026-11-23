@@ -1,5 +1,7 @@
 # Roadmap
 
+End state and phase order: [PRODUCT-PLAN.md](PRODUCT-PLAN.md). Design decisions: [adr/](adr/).
+
 ## Phase 0: Standards harvest
 - [x] Export Standards command (title blocks, view templates, view types, tags, text, dimensions, schedules, drafting views, legends, sheets, wall/floor/roof/ceiling/door/window types, keynote file)
 - [x] Hand-edited `manual` section that survives re-exports (rules, sheet index per project type, title block insets)
@@ -49,7 +51,7 @@
 
 ## Phase 4: Plan set QA (audit runs in Revit 2026; fixes built, not yet run)
 Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-sets.md).
-- [x] `audit_set`: read-only punch list, 16 checks, rules in `manual.audit`, logic in Core with tests
+- [x] `audit_set`: read-only punch list, 17 checks, rules in `manual.audit`, logic in Core with tests
   - size-code Type Marks vs geometry, operation codes, duplicate marks
   - door/window schedules report from Type Mark with Count, swing, Tempered, Egress
   - tags on placed plans and elevations, wall legend vs modeled walls
@@ -60,8 +62,11 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 - [x] First run inside Revit on a copy of a finished job (2026-11-21: 1.4 s, findings verified; clerestory false alarm fixed)
 - [x] Audit findings carry a ready-to-propose fix (`target` + `suggestion`), operation read from the family name, collisions withheld
 - [x] Fix proposals: `propose_type_marks` (size-code checked against geometry, no duplicate marks), `propose_parameters` (Tempered/Egress from an Allegro shared parameter file), `propose_schedule_sort` (sort/group + itemized), `propose_room_cleanup` (unplaced/unenclosed only)
-- [ ] First run of the fix proposals inside Revit
-- [ ] One-command "make it permit-ready" run that walks the fix batches in order
+- [x] First run of the fix proposals inside Revit (2026-11-21, 25-0083: parameters, Type Marks, schedule columns/sort, tempered/egress values, room cleanup)
+- [x] `wall-function` gate and `propose_wall_function` (interior wall types set to Exterior made interior doors read as exterior)
+- [x] Undo awareness: Ctrl+Z on a proposal marks it Undone, redo marks it Applied
+- [x] Text heights show the real size when just under 1/8"; Tempered = No with a reason in Comments clears the warning
+- [ ] One-command "make it permit-ready" run that walks the fix batches in order (now the Finish Drafting button, [ADR 0001](adr/0001-finish-drafting.md))
 - [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area
 - [ ] Dimension strings close to their overall, no gaps
 - [ ] Bearing walls stack between levels
