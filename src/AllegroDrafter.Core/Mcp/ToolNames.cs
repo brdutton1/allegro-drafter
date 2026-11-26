@@ -14,6 +14,7 @@ public static class ToolNames
     public const string ReadLegend = "read_legend";
     public const string AuditSet = "audit_set";
     public const string GetFinishPlan = "get_finish_plan";
+    public const string ReadDimensions = "read_dimensions";
 
     public const string ProposeSheets = "propose_sheets";
     public const string ProposeSheetSet = "propose_sheet_set";

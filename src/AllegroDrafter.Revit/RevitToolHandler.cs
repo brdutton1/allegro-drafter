@@ -54,6 +54,12 @@ internal sealed class RevitToolHandler : IToolHandler
                     var finishParameters = _standards.Current?.Manual.FinishParameters ?? new Core.Standards.ManualSettings().FinishParameters;
                     return await Read((_, doc) => ScheduleReader.Elements(doc, category, level, parameters, withList, finishParameters));
                 }
+                case ToolNames.ReadDimensions:
+                {
+                    var viewName = Args.RequiredString(args, "viewName", "arguments");
+                    var viewType = Args.OptionalString(args, "viewType", "arguments");
+                    return await Read((_, doc) => DimensionReader.Read(doc, viewName, viewType));
+                }
                 case ToolNames.ReadLegend:
                 {
                     var legend = Args.OptionalString(args, "name", "arguments");

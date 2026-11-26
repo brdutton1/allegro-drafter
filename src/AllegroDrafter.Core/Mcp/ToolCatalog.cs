@@ -132,6 +132,15 @@ public static class ToolCatalog
               "additionalProperties": false }
             """, ReadOnly: true),
 
+        new ToolDefinition(ToolNames.ReadDimensions, "Read a view's dimensions",
+            "Read-only. Every dimension string in a plan view, so you can learn how the designer dimensions: the side of the building it's on (model direction and where it sits on the sheet), its order out from the building and distance from the wall face, its dimension type, its segment values, and for every reference what it measures to (which wall layer face: finish, sheathing, face of stud/core; door or window centerline or edge; grid; level; reference plane). Also the view's rotation and its viewport rotation on the sheet. Changes nothing.",
+            $$"""
+            { "type": "object", "required": ["viewName"], "properties": {
+                "viewName": { "type": "string" },
+                {{ViewTypeProp}} },
+              "additionalProperties": false }
+            """, ReadOnly: true),
+
         new ToolDefinition(ToolNames.GetFinishPlan, "Preview Finish Drafting",
             "Read-only. What the Finish Drafting button would do next on this model: the step, and the exact batch it would queue or the questions it would ask. Uses the live run's answers if a run is going in Revit. Changes nothing. The designer runs it from Allegro > Finish Drafting.",
             """
