@@ -76,6 +76,7 @@ internal sealed class RevitToolHandler : IToolHandler
                         {
                             next = "batch", step = b.StepId, title = b.StepTitle, number = b.StepNumber, of = Core.Finishing.FinishPlanner.Steps.Count,
                             batch = b.Request.Title, rationale = b.Request.Rationale, changes = b.Request.Changes.Select(c => c.Describe()).ToList(),
+                            waitsForDesigner = Core.Finishing.FinishPlanner.WaitReason(b, _standards.Current?.Manual.FinishDrafting) ?? "no: the office rule applies it without a click",
                         },
                         Core.Finishing.FinishQuestions q => new
                         {

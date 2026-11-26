@@ -38,6 +38,26 @@ internal sealed class FinishRun
 
     public bool HasRun => StartedUtc is not null;
 
+    /// <summary>The designer's per-run override: stop at every batch, even ones the office rule applies on its own.</summary>
+    public bool ReviewEveryBatch { get; set; }
+
+    /// <summary>Batches applied this session under the office rule, without a click.</summary>
+    public int AppliedByRule { get; private set; }
+
+    /// <summary>Where the last finished run's change report was written, or null.</summary>
+    public string? ReportPath { get; private set; }
+
+    /// <summary>The project the run is on (from the last model read), or null before the first.</summary>
+    public string? Project { get { lock (_gate) return _project; } }
+
+    /// <summary>Every sheet this run changed and what changed on it. Undone batches drop out.</summary>
+    public ChangeReport Report()
+    {
+        var project = Project;
+        if (project is null) return ChangeReport.Build(Array.Empty<ChangeImpact>(), _ => null);
+        return ChangeReport.Build(_app.FinishChanges.For(project).Impacts, id => _app.Proposals.Get(id)?.Status);
+    }
+
     public void Start()
     {
         lock (_gate)
@@ -96,6 +116,9 @@ internal sealed class FinishRun
         switch (p.Status)
         {
             case ProposalStatus.Applied:
+                lock (_gate) CurrentProposalId = null;
+                _ = AfterAppliedAsync(p);
+                break;
             case ProposalStatus.Undone:
                 lock (_gate) CurrentProposalId = null;
                 _ = AdvanceAsync();
@@ -114,6 +137,29 @@ internal sealed class FinishRun
                 Raise();
                 break;
         }
+    }
+
+    /// <summary>Records which sheets the batch changed, then plans the next step.</summary>
+    private async Task AfterAppliedAsync(Proposal applied)
+    {
+        var project = Project;
+        if (project is not null)
+        {
+            try
+            {
+                var settings = _app.Standards.Current?.Manual.FinishDrafting ?? new Core.Standards.FinishDraftingSettings();
+                var impacts = await _app.Dispatcher.InvokeAsync(app =>
+                    Model.ImpactReader.Read(DrafterService.RequireProject(app), applied, settings));
+                _app.FinishChanges.Record(project, applied.Id, impacts);
+            }
+            catch (Exception ex)
+            {
+                // The batch is in; only the report is short. Say so rather than stop the run.
+                lock (_gate) Notes.Add($"{applied.Title}: applied, but the change report couldn't read where it shows ({ex.Message}).");
+            }
+        }
+        Raise();
+        await AdvanceAsync();
     }
 
     private async Task AdvanceAsync()
@@ -144,7 +190,9 @@ internal sealed class FinishRun
         SetStatus("Reading the model...");
         try
         {
-            UseProject(await _app.Drafter.ActiveProjectTitleAsync());
+            var project = await _app.Drafter.ActiveProjectTitleAsync();
+            UseProject(project);
+            _app.FinishChanges.BeginOrResume(project, DateTime.UtcNow);
             var (facts, report) = await _app.Drafter.RunAuditAsync();
             FinishState state;
             lock (_gate) state = State;
@@ -159,7 +207,8 @@ internal sealed class FinishRun
                     var outcome = await _app.Drafter.ProposeAsync(request, dropEmpty: true, finishStep: batch.StepId);
                     if (outcome.Queued)
                     {
-                        lock (_gate) CurrentProposalId = outcome.Proposal!.Id;
+                        var queuedId = outcome.Proposal!.Id;
+                        lock (_gate) CurrentProposalId = queuedId;
                         var replaced = outcome.Replaced ?? Array.Empty<Proposal>();
                         foreach (var old in replaced)
                         {
@@ -167,11 +216,25 @@ internal sealed class FinishRun
                             try { _app.Audit.Write(AuditEntry.From(old, ProposalStore.FinishDraftingUser)); }
                             catch { /* never let logging stop a run */ }
                         }
+                        var replacedNote = replaced.Count == 0 ? ""
+                            : $" It replaces {string.Join(", ", replaced.Select(r => r.Id))}, left open from before and planned against an older model.";
+
+                        var wait = FinishPlanner.WaitReason(batch, _app.Standards.Current?.Manual.FinishDrafting);
+                        if (wait is null && !ReviewEveryBatch)
+                        {
+                            // Office rule: this step applies without a click. Still its own Ctrl+Z, still in the
+                            // log as applied by rule, and the change report lists every sheet it touched.
+                            lock (_gate) AppliedByRule++;
+                            SetStatus($"Applying \"{batch.Request.Title}\" by office rule...{replacedNote}");
+                            Log("auto-apply", $"{queuedId} {batch.StepId}");
+                            _ = _app.ApproveAsync(queuedId, byRule: true);
+                            return;
+                        }
+
                         var ask = batch.Request.Changes.Any(c => c.IsDestructive)
                             ? "This batch deletes. Read the list below, then approve or reject."
                             : "Check the batch below, then approve or reject. Rejecting skips this step.";
-                        SetStatus(replaced.Count == 0 ? ask
-                            : $"{ask} It replaces {string.Join(", ", replaced.Select(r => r.Id))}, left open from before, which was planned against an older model.");
+                        SetStatus(ask + replacedNote);
                         return;
                     }
                     // Refused (the model disagrees with the rule) or nothing left after pruning: note it and move on.
@@ -198,6 +261,7 @@ internal sealed class FinishRun
                             : "Done with everything the button can do. What's left needs you or the office template:";
                     }
                     Log("done", string.Join(" | ", done.Remaining));
+                    WriteReport(project, done.Remaining);
                     Raise();
                     return;
             }
@@ -211,6 +275,30 @@ internal sealed class FinishRun
             }
             Raise();
         }
+    }
+
+    /// <summary>
+    /// Writes the change report to reports\ as markdown and closes this run's list, so the next
+    /// Finish Drafting starts a fresh one. A report that can't be written never stops the run.
+    /// </summary>
+    private void WriteReport(string project, IReadOnlyList<string> remaining)
+    {
+        try
+        {
+            var report = Report();
+            var dir = _app.Paths.ReportsDir;
+            Directory.CreateDirectory(dir);
+            var safe = string.Concat(project.Select(ch => Path.GetInvalidFileNameChars().Contains(ch) ? '_' : ch));
+            var path = Path.Combine(dir, $"{safe} - Finish Drafting {DateTime.Now:yyyy-MM-dd HHmm}.md");
+            File.WriteAllText(path, report.ToMarkdown(project, DateTime.Now, remaining));
+            lock (_gate) ReportPath = path;
+            Log("report", path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            lock (_gate) Notes.Add($"The change report couldn't be saved ({ex.Message}). It's still shown here.");
+        }
+        _app.FinishChanges.MarkFinished(project, DateTime.UtcNow);
     }
 
     /// <summary>

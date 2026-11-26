@@ -74,6 +74,26 @@ public sealed class ManualSettings
 
     /// <summary>Rules the audit_set check runs against (size codes, schedule columns, text height, ...).</summary>
     public Checks.AuditSettings Audit { get; set; } = new();
+
+    /// <summary>How the Finish Drafting button runs: which steps apply without a click, what the change report reads.</summary>
+    public FinishDraftingSettings FinishDrafting { get; set; } = new();
+}
+
+public sealed class FinishDraftingSettings
+{
+    /// <summary>
+    /// Steps whose batches apply without an Approve click. Office decision. A batch that deletes
+    /// never applies on its own, whatever this says, and question cards always wait for the designer.
+    /// Step ids: gate, parameters, type-marks, cover-sheet, view-templates, schedules,
+    /// tempered-egress, rooms, door-swing, room-cleanup, tags.
+    /// </summary>
+    public List<string> AutoApplySteps { get; set; } = new() { "gate", "parameters", "cover-sheet", "view-templates", "schedules", "tags" };
+
+    /// <summary>
+    /// Parameters the office tags print. A change to one of these shows up in the change report on
+    /// every sheet where the element is tagged; other parameters only show where a schedule prints them.
+    /// </summary>
+    public List<string> TagLabelParameters { get; set; } = new() { "Type Mark", "Mark", "Number", "Name", "Room Size" };
 }
 
 public sealed record FinishCode(string Code, string Description);

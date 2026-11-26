@@ -53,20 +53,37 @@ public static class FinishPlanner
 {
     public const int MaxChanges = 50;
 
+    /// <summary>
+    /// Run order. Anything that places a view (cover sheet) comes before view templates, so new
+    /// views get a template in the same pass. View templates come before schedules, because a
+    /// schedule template replaces the schedule's columns and sorting; the schedule step then puts
+    /// the office columns back on top of it instead of being wiped by it.
+    /// </summary>
     public static readonly IReadOnlyList<(string Id, string Title)> Steps = new[]
     {
         ("gate", "Wall types"),
         ("parameters", "Parameters"),
         ("type-marks", "Size-code Type Marks"),
+        ("cover-sheet", "Cover sheet"),
+        ("view-templates", "View templates"),
         ("schedules", "Door and window schedules"),
         ("tempered-egress", "Tempered and egress"),
         ("rooms", "Room numbers and sizes"),
         ("door-swing", "Door swing"),
         ("room-cleanup", "Unplaced rooms"),
-        ("view-templates", "View templates"),
         ("tags", "Tags"),
-        ("cover-sheet", "Cover sheet"),
     };
+
+    /// <summary>
+    /// Why this batch waits for an Approve click, or null if the office rule applies it on its own.
+    /// A batch that deletes always waits, whatever the setting says.
+    /// </summary>
+    public static string? WaitReason(FinishBatch batch, FinishDraftingSettings? settings)
+    {
+        if (batch.Request.Changes.Any(c => c.IsDestructive)) return "it deletes";
+        var auto = settings?.AutoApplySteps ?? new FinishDraftingSettings().AutoApplySteps;
+        return auto.Contains(batch.StepId, StringComparer.OrdinalIgnoreCase) ? null : "the office rule has you check this step";
+    }
 
     public static FinishStep Next(SetFacts facts, AuditReport report, StandardsProfile? profile, FinishState state)
     {
@@ -397,11 +414,24 @@ public static class FinishPlanner
 
         var changes = new List<ProposalChange>();
         var cards = new List<QuestionCard>();
-        foreach (var group in views.GroupBy(v => (v.ViewType, Keyword: ViewKeywords.FirstOrDefault(k => v.Name.Contains(k, StringComparison.OrdinalIgnoreCase)) ?? "")).OrderBy(g => g.Key.ViewType).ThenBy(g => g.Key.Keyword))
+
+        // Revit only takes a template made for the same kind of view. When the office has none for a
+        // kind, that's a template fix, not something to guess per job: say so once per kind and move on.
+        bool HasChoices(string viewType) => templates.Any(t => Same(t.ViewType, viewType));
+        foreach (var kind in views.Where(v => !HasChoices(v.ViewType)).GroupBy(v => v.ViewType, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key))
+        {
+            var id = $"template:{kind.Key}:none";
+            if (c.State.Answered(id)) continue;
+            var names = string.Join(", ", kind.Take(4).Select(v => v.Name)) + (kind.Count() > 4 ? ", ..." : "");
+            cards.Add(new QuestionCard(id, "view-templates",
+                $"The office template has no view template for {kind.Key} views ({names}), so the button can't apply one. Make one in the office template and re-export standards, or set these by hand.",
+                new[] { FinishState.DoneByHand, FinishState.Skip }));
+        }
+
+        foreach (var group in views.Where(v => HasChoices(v.ViewType)).GroupBy(v => (v.ViewType, Keyword: ViewKeywords.FirstOrDefault(k => v.Name.Contains(k, StringComparison.OrdinalIgnoreCase)) ?? "")).OrderBy(g => g.Key.ViewType).ThenBy(g => g.Key.Keyword))
         {
             var (viewType, keyword) = group.Key;
             var choices = templates.Where(t => Same(t.ViewType, viewType)).Select(t => t.Name).ToList();
-            if (choices.Count == 0) continue;
             var id = $"template:{viewType}:{keyword}";
             var rule = c.S.ViewTemplateRules.FirstOrDefault(r => Same(r.ViewType, viewType) && (string.IsNullOrEmpty(r.NameContains) ? keyword == "" : keyword.Equals(r.NameContains, StringComparison.OrdinalIgnoreCase)));
             var pick = rule?.Template ?? c.State.Answer(id);

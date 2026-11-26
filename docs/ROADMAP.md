@@ -68,8 +68,13 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 - [x] Text heights show the real size when just under 1/8"; Tempered = No with a reason in Comments clears the warning
 - [x] Finish Drafting button ([ADR 0001](adr/0001-finish-drafting.md)): rules-only planner (11 steps), run loop, run panel with question cards and Show, one batch visible at a time, delete confirm screen, `get_finish_plan` preview tool. Built, not yet run in Revit
 - [x] Finish Drafting survives Stop/Resume and restarts: one open batch per project (a new batch rejects the leftover, so the same work can't be approved twice), leftovers hidden during a run, card answers saved per project
-- [ ] First full Finish Drafting run on 25-0083; spot-check door handing and lock the convention in `manual.audit`
-- [ ] Door schedule group headers with a count per size code (built; needs the install)
+- [x] First full Finish Drafting run on 25-0083 (2026-11-26: about 5 min, 13 approvals, 13 cards)
+- [x] Door schedule group headers with a count per size code
+- [x] Office auto-apply rule (`manual.finishDrafting.autoApplySteps`; deletes always wait), per-run "stop at every batch" override
+- [x] "What changed" report by sheet: in the run panel with Open/Show, markdown file per run, survives restarts, undone batches drop out
+- [x] Step order: cover sheet, view templates, then schedules (no repeated steps); a view type with no office template gets one card instead of silence
+- [ ] Second run on 25-0083 with the new build: count clicks, check the report against the sheets
+- [ ] Spot-check door handing (573 Therma-Tru "Inswing" read as LHR) and lock the convention in `manual.audit`
 - [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area
 - [ ] Dimension strings close to their overall, no gaps
 - [ ] Bearing walls stack between levels

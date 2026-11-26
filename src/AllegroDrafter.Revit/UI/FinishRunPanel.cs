@@ -34,6 +34,8 @@ internal sealed class FinishRunPanel : Border
         Margin = new Thickness(0, 0, 0, 10);
         Child = _body;
         _run.Changed += (_, _) => Dispatcher.BeginInvoke(Refresh);
+        // An undo or redo of an earlier batch changes the report, even when the run isn't waiting on it.
+        _app.Proposals.Changed += (_, _) => Dispatcher.BeginInvoke(Refresh);
         Refresh();
     }
 
@@ -57,12 +59,30 @@ internal sealed class FinishRunPanel : Border
         _body.Children.Add(title);
         _body.Children.Add(Text(_run.Status, top: 4));
         if (_app.FinishAnswers.Warning is { } warning) _body.Children.Add(Text(warning, muted: true, size: 11, top: 4));
+        if (_app.FinishChanges.Warning is { } changesWarning) _body.Children.Add(Text(changesWarning, muted: true, size: 11, top: 4));
+
+        if (_run.IsRunning)
+        {
+            var review = new CheckBox
+            {
+                Content = "Stop at every batch this run (ignore the office auto-apply rule)",
+                IsChecked = _run.ReviewEveryBatch,
+                Margin = new Thickness(0, 6, 0, 0),
+                FontSize = 11,
+                Foreground = Muted,
+            };
+            review.Checked += (_, _) => _run.ReviewEveryBatch = true;
+            review.Unchecked += (_, _) => _run.ReviewEveryBatch = false;
+            _body.Children.Add(review);
+        }
 
         if (_run.IsRunning && step is FinishQuestions q)
             foreach (var card in q.Cards.Where(c => !_run.State.Answered(c.Id))) _body.Children.Add(Card(card));
 
         if (step is FinishDone done)
             foreach (var r in done.Remaining) _body.Children.Add(Text("• " + r, top: 2));
+
+        AddReport(step is FinishDone);
 
         if (_run.Notes.Count > 0)
         {
@@ -140,6 +160,105 @@ internal sealed class FinishRunPanel : Border
             Margin = new Thickness(0, 8, 0, 0),
             Child = panel,
         };
+    }
+
+    /// <summary>
+    /// "What changed": every sheet the run touched, with Open (go to the sheet) and Show (select the
+    /// elements). Shown as the run goes, so a Stop partway still tells you where to look.
+    /// </summary>
+    private void AddReport(bool finished)
+    {
+        ChangeReport report;
+        try { report = _run.Report(); }
+        catch { return; } // a report problem never hides the run
+        if (report.IsEmpty && !finished) return;
+
+        var heading = report.Sheets.Count == 0
+            ? "What changed: nothing on a sheet"
+            : $"What changed: {report.Sheets.Count} sheet{(report.Sheets.Count == 1 ? "" : "s")} to check";
+        var byRule = _run.AppliedByRule > 0 ? $" · {_run.AppliedByRule} batch{(_run.AppliedByRule == 1 ? "" : "es")} applied by office rule" : "";
+        var head = Text(heading + byRule, top: 10);
+        head.FontWeight = FontWeights.SemiBold;
+        _body.Children.Add(head);
+
+        foreach (var sheet in report.Sheets)
+        {
+            var row = new DockPanel { Margin = new Thickness(0, 6, 0, 0) };
+            if (sheet.SheetId is long sheetId)
+            {
+                var open = SmallButton("Open", "Open this sheet");
+                open.Click += (_, _) => OpenView(sheetId);
+                DockPanel.SetDock(open, Dock.Right);
+                row.Children.Add(open);
+            }
+            var name = Text($"{sheet.Number} {sheet.Name}".TrimEnd(), top: 0);
+            name.FontWeight = FontWeights.SemiBold;
+            row.Children.Add(name);
+            _body.Children.Add(row);
+            foreach (var line in sheet.Lines) _body.Children.Add(Line(line));
+        }
+
+        if (report.ModelOnly.Count > 0)
+        {
+            _body.Children.Add(Text("In the model only (nothing on a sheet moved):", muted: true, top: 8));
+            foreach (var line in report.ModelOnly) _body.Children.Add(Line(line));
+        }
+        if (report.UndoneProposals.Count > 0)
+            _body.Children.Add(Text($"Undone, so left out: {string.Join(", ", report.UndoneProposals)}", muted: true, size: 11, top: 4));
+
+        if (finished && _run.ReportPath is { } path)
+        {
+            var file = new Button { Content = "Open the report", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0), Padding = new Thickness(10, 2, 10, 2), ToolTip = path };
+            file.Click += (_, _) =>
+            {
+                try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true }); }
+                catch { /* no app for .md: the path is in the tooltip */ }
+            };
+            _body.Children.Add(file);
+        }
+    }
+
+    private UIElement Line(ChangeLine line)
+    {
+        var row = new DockPanel { Margin = new Thickness(12, 1, 0, 0) };
+        if (line.ElementIds.Count > 0)
+        {
+            var ids = line.ElementIds.ToList();
+            var show = SmallButton("Show", "Select these in Revit and zoom to them");
+            show.Click += (_, _) => ShowElements(ids);
+            DockPanel.SetDock(show, Dock.Right);
+            row.Children.Add(show);
+        }
+        row.Children.Add(Text("• " + line.Text, size: 11, top: 0));
+        return row;
+    }
+
+    private static Button SmallButton(string label, string tip) =>
+        new() { Content = label, Padding = new Thickness(6, 0, 6, 0), Margin = new Thickness(6, 0, 0, 0), FontSize = 11, ToolTip = tip, VerticalAlignment = VerticalAlignment.Top };
+
+    private void OpenView(long id)
+    {
+        _ = _app.Dispatcher.InvokeAsync(app =>
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc?.Document.GetElement(new ElementId(id)) is not View view) return false;
+            uidoc.RequestViewChange(view);
+            return true;
+        }).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    private void ShowElements(IReadOnlyList<long> ids)
+    {
+        _ = _app.Dispatcher.InvokeAsync(app =>
+        {
+            var uidoc = app.ActiveUIDocument;
+            if (uidoc is null) return false;
+            var list = ids.Select(i => new ElementId(i)).Where(i => uidoc.Document.GetElement(i) is not null).ToList();
+            if (list.Count == 0) return false;
+            uidoc.Selection.SetElementIds(list);
+            uidoc.ShowElements(list);
+            return true;
+        }).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
     }
 
     private void ShowElement(long id)

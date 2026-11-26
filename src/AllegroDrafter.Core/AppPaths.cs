@@ -30,6 +30,12 @@ public sealed class AppPaths
     /// <summary>Finish Drafting card answers, per project, so a restart doesn't ask again.</summary>
     public string FinishAnswersFile => Path.Combine(Root, "finish-answers.json");
 
+    /// <summary>What the current Finish Drafting run has changed, per project, for the change report.</summary>
+    public string FinishChangesFile => Path.Combine(Root, "finish-changes.json");
+
+    /// <summary>Finished change reports, one markdown file per run.</summary>
+    public string ReportsDir => Path.Combine(Root, "reports");
+
     /// <summary>One JSON-lines file per month recording every approve/reject.</summary>
     public string AuditDir => Path.Combine(Root, "audit");
 

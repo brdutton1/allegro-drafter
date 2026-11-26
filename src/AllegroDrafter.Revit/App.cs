@@ -27,6 +27,7 @@ public sealed class App : IExternalApplication
     internal DrafterService Drafter { get; private set; } = null!;
     internal Finishing.FinishRun Finish { get; private set; } = null!;
     internal FinishAnswersStore FinishAnswers { get; private set; } = null!;
+    internal FinishChangesStore FinishChanges { get; private set; } = null!;
     internal McpConfig? Config { get; private set; }
     internal McpHttpServer? Server { get; private set; }
     internal string? ServerError { get; private set; }
@@ -42,6 +43,7 @@ public sealed class App : IExternalApplication
         Dispatcher = new RevitDispatcher();
         Drafter = new DrafterService(Dispatcher, Proposals, Standards, ShowPaneSoon);
         FinishAnswers = new FinishAnswersStore(Paths.FinishAnswersFile);
+        FinishChanges = new FinishChangesStore(Paths.FinishChangesFile);
         Finish = new Finishing.FinishRun(this);
 
         var pane = new ApprovalPane(this);
@@ -93,12 +95,15 @@ public sealed class App : IExternalApplication
         }).ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
     }
 
-    /// <summary>Approve button. Safe to call twice: the store only lets one through.</summary>
-    internal async Task ApproveAsync(string proposalId)
+    /// <summary>
+    /// Approve button. Safe to call twice: the store only lets one through.
+    /// byRule: Finish Drafting applied it under the office's auto-apply rule; the log says so.
+    /// </summary>
+    internal async Task ApproveAsync(string proposalId, bool byRule = false)
     {
         if (!Proposals.TryBeginApply(proposalId)) return;
         var proposal = Proposals.Get(proposalId)!;
-        var user = Environment.UserName;
+        var user = byRule ? $"{Environment.UserName} (office rule)" : Environment.UserName;
 
         ApplyResult result;
         try
