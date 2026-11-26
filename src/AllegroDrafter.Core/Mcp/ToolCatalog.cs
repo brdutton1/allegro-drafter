@@ -1,4 +1,4 @@
-using System.Text.Json.Nodes;
+﻿using System.Text.Json.Nodes;
 
 namespace AllegroDrafter.Core.Mcp;
 
@@ -200,14 +200,14 @@ public static class ToolCatalog
             """, ReadOnly: false),
 
         new ToolDefinition(ToolNames.ProposeDimensions, "Propose plan dimensions",
-            "Proposes rule-based dimension strings on a floor plan. Exterior tiers from the building out: 'openings' (door/window centerlines), 'walls' (every jog), 'overall'. 'interior': strings that locate every interior wall, chained to the exterior faces, never running along a wall. Walls are sorted by the way their exterior faces, so L and U plans come out right. Straight walls only; angled walls are reported, not guessed. Refuses views that already have dimensions unless allowExisting is true.",
+            "Proposes rule-based dimension strings on a floor plan. Exterior tiers from the building out: 'columns' (porch and exterior column centerlines, only on sides that have them), 'openings' (door/window centerlines), 'walls' (every jog), 'overall'. Walls measure to the outside of finish. 'interior': strings that locate every interior wall, chained to the exterior faces, never running along a wall. Walls are sorted by the way their exterior faces, so L and U plans come out right. Straight walls only; angled walls are reported, not guessed. Refuses views that already have dimensions unless allowExisting is true.",
             $$"""
             { "type": "object", "required": ["title","views"], "properties": {
                 {{TitleRationale}},
                 "views": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["viewName"], "properties": {
                     "viewName": { "type": "string", "description": "A floor plan view." },
                     {{ViewTypeProp}},
-                    "strategies": { "type": "array", "items": { "type": "string", "enum": ["openings","walls","overall","interior"] }, "description": "Default all four." },
+                    "strategies": { "type": "array", "items": { "type": "string", "enum": ["columns","openings","walls","overall","interior"] }, "description": "Default all five. columns: porch/exterior column centerlines, nearest the columns, on sides that have them." },
                     "interiorBasis": { "type": "string", "enum": ["face","center"], "description": "Interior walls measured to one consistent face (west/south, default) or to centerlines." },
                     "sides": { "type": "array", "items": { "type": "string", "enum": ["top","bottom","left","right","north","south","east","west"] }, "description": "Only these exterior sides. top/bottom/left/right are as the view sits on the sheet; north/south/east/west are model directions. Leave out for every side. Interior strings are drawn only if 'interior' is in strategies. Use with allowExisting to fill in one side the designer cleared." },
                     "dimensionType": { "type": "string", "description": "Exact name from get_standards dimensionTypes, e.g. 'Linear: Arch 3/32\"'. Omit for the project default." },

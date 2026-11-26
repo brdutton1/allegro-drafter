@@ -93,7 +93,7 @@ public class AnnotationParsingTests
     {
         var dims = Assert.IsType<DimensionViewChange>(Assert.Single(Parse(ToolNames.ProposeDimensions,
             """{ "title": "t", "views": [ { "viewName": "Level 1" } ] }""").Changes));
-        Assert.Equal(new[] { "openings", "walls", "overall", "interior" }, dims.Strategies);
+        Assert.Equal(new[] { "columns", "openings", "walls", "overall", "interior" }, dims.Strategies);
         Assert.Equal((4.0, 2.0, false), (dims.OffsetFeet, dims.StepFeet, dims.AllowExisting));
         Assert.Null(dims.InteriorBasis);
         Assert.Contains("Add 8 exterior and interior", (dims with { ExpectedStrings = 8 }).Describe());

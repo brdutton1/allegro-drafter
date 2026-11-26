@@ -33,6 +33,16 @@ public sealed record PlanWall(string Key, double X1, double Y1, double X2, doubl
 /// <summary>A door or window in an exterior wall. Center is X for an east-west wall, Y for a north-south wall.</summary>
 public sealed record PlanOpening(string Key, string WallKey, double Center);
 
+/// <summary>
+/// A column in plan (porch post, timber column), center and half its size, in feet. Strings measure
+/// to its centerline: reference KeyX locates it in X (east-west strings), KeyY in Y.
+/// </summary>
+public sealed record PlanColumn(string Key, double X, double Y, double HalfSize = 0.5)
+{
+    public string KeyX => Key + ":x";
+    public string KeyY => Key + ":y";
+}
+
 public sealed record DimensionRef(string Key, double Position);
 
 /// <summary>
@@ -61,7 +71,13 @@ public static class DimensionPlanner
     public const string Overall = "overall";
     public const string Walls = "walls";
     public const string Openings = "openings";
-    public static readonly IReadOnlyList<string> Strategies = new[] { Openings, Walls, Overall };
+    public const string Columns = "columns";
+
+    /// <summary>
+    /// Tiers from the building out. Office order (Bryan, 2026-11-26): openings, walls, overall.
+    /// On a side with porch columns, the column string comes first, nearest the columns.
+    /// </summary>
+    public static readonly IReadOnlyList<string> Strategies = new[] { Columns, Openings, Walls, Overall };
 
     private const double Same = 1.0 / 192; // 1/16" - references closer than this are the same point
 
@@ -70,9 +86,11 @@ public static class DimensionPlanner
         IReadOnlyList<PlanOpening> openings,
         IReadOnlyCollection<string> strategies,
         double offsetFeet = 4.0,
-        double stepFeet = 2.0)
+        double stepFeet = 2.0,
+        IReadOnlyList<PlanColumn>? columns = null)
     {
         var notes = new List<string>();
+        columns ??= Array.Empty<PlanColumn>();
         var unknown = strategies.Where(s => !Strategies.Contains(s)).ToList();
         if (unknown.Count > 0) throw new ArgumentException($"Unknown strategy: {string.Join(", ", unknown)}. Use {string.Join(", ", Strategies)}.");
         if (offsetFeet <= 0 || stepFeet <= 0) throw new ArgumentException("offsetFeet and stepFeet must be positive.");
@@ -103,10 +121,47 @@ public static class DimensionPlanner
         if (!byFacing && straight.Any(w => w.Facing is not null))
             notes.Add("Some walls had no exterior direction; the building was split at its midline instead. Check the strings on L or U plans.");
 
+        // Columns outside the house belong to the side they stand on (a porch post north of the house
+        // is on the north strings). A corner post can be on two sides. Columns inside are interior work.
+        // Spacing is off the outside faces (3/8" off the outside of finish), not the centerlines.
+        var faceNorth = eastWest.Count > 0 ? eastWest.Max(w => w.FaceCoord) : maxY;
+        var faceSouth = eastWest.Count > 0 ? eastWest.Min(w => w.FaceCoord) : minY;
+        var faceEast = northSouth.Count > 0 ? northSouth.Max(w => w.FaceCoord) : maxX;
+        var faceWest = northSouth.Count > 0 ? northSouth.Min(w => w.FaceCoord) : minX;
+
+        var footprint = new Footprint(straight);
+        var columnsBySide = new Dictionary<Side, List<PlanColumn>>();
+        void Put(Side s, PlanColumn c)
+        {
+            if (!columnsBySide.TryGetValue(s, out var list)) columnsBySide[s] = list = new List<PlanColumn>();
+            if (!list.Contains(c)) list.Add(c);
+        }
+        foreach (var c in columns)
+        {
+            if (footprint.Count > 0 && footprint.IsInside(c.X, c.Y)) continue; // interior column: not an exterior string
+            // Open sky on one side only: that's its side (a post in front of a facade, or in a notch).
+            foreach (var axisNorthSouth in new[] { true, false })
+                if (footprint.SideOf(c.X, c.Y, axisNorthSouth) is { } s) Put(s, c);
+            // Past the outermost faces (a corner post): every side it stands beyond.
+            if (c.Y > faceNorth) Put(Side.North, c);
+            if (c.Y < faceSouth) Put(Side.South, c);
+            if (c.X > faceEast) Put(Side.East, c);
+            if (c.X < faceWest) Put(Side.West, c);
+        }
+
         var strings = new List<DimensionString>();
         foreach (var side in new[] { Side.North, Side.South, Side.East, Side.West })
         {
             var horizontal = side is Side.North or Side.South;
+            var sideColumns = columnsBySide.TryGetValue(side, out var sc) ? sc : new List<PlanColumn>();
+            // The strings clear everything on this side: the outermost wall face or column, whichever is further out.
+            var extreme = side switch
+            {
+                Side.North => sideColumns.Select(c => c.Y + c.HalfSize).Append(faceNorth).Max(),
+                Side.South => sideColumns.Select(c => c.Y - c.HalfSize).Append(faceSouth).Min(),
+                Side.East => sideColumns.Select(c => c.X + c.HalfSize).Append(faceEast).Max(),
+                _ => sideColumns.Select(c => c.X - c.HalfSize).Append(faceWest).Min(),
+            };
             // Walls perpendicular to this side's dimension line give the faces we measure between.
             var perpendicular = horizontal ? northSouth : eastWest;
             if (perpendicular.Count < 2)
@@ -152,6 +207,12 @@ public static class DimensionPlanner
                 var refs = new List<DimensionRef>();
                 switch (strategy)
                 {
+                    case Columns:
+                        if (sideColumns.Count == 0) continue; // no posts on this side: no column string
+                        refs.AddRange(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord)));
+                        refs.AddRange(sideColumns.Select(c => horizontal ? new DimensionRef(c.KeyX, c.X) : new DimensionRef(c.KeyY, c.Y)));
+                        break;
+
                     case Overall:
                         refs.AddRange(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord)));
                         break;
@@ -176,13 +237,7 @@ public static class DimensionPlanner
                 if (strategy == Walls && strategies.Contains(Overall) && cleaned.Select(r => r.Position).SequenceEqual(overallPositions)) continue;
 
                 var offset = offsetFeet + tier * stepFeet;
-                var line = side switch
-                {
-                    Side.North => maxY + offset,
-                    Side.South => minY - offset,
-                    Side.East => maxX + offset,
-                    _ => minX - offset,
-                };
+                var line = side is Side.North or Side.East ? extreme + offset : extreme - offset;
                 strings.Add(new DimensionString(side, strategy, line, cleaned));
                 tier++;
             }

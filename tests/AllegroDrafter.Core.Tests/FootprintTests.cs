@@ -72,6 +72,60 @@ public class FootprintTests
         Assert.Null(new Footprint(walls).FacingOf(walls[^1]));
     }
 
+    // -------------------------------------------------------------- columns
+
+    // 64 x 30 house; a porch along the north with four 12x12 posts 8' out, like 25-0083's.
+    private static List<PlanWall> House() => new()
+    {
+        new("S", 0, 0, 64, 0, -0.5, Side.South),
+        new("E", 64, 0, 64, 30, 64.5, Side.East),
+        new("N", 64, 30, 0, 30, 30.5, Side.North),
+        new("W", 0, 30, 0, 0, -0.5, Side.West),
+    };
+
+    private static List<PlanColumn> PorchPosts() => new()
+    {
+        new("c1", 0.5, 38, 0.5), new("c2", 21.9, 38, 0.5), new("c3", 42.1, 38, 0.5), new("c4", 63.5, 38, 0.5),
+    };
+
+    [Fact]
+    public void Porch_posts_get_their_own_string_nearest_the_posts()
+    {
+        var plan = DimensionPlanner.Plan(House(), Array.Empty<PlanOpening>(), DimensionPlanner.Strategies.ToList(), 1.5, 1.5, PorchPosts());
+        var north = plan.Strings.Where(s => s.Side == Side.North).OrderBy(s => s.LineCoord).ToList();
+
+        var posts = north.First();
+        Assert.Equal(DimensionPlanner.Columns, posts.Strategy);
+        Assert.Equal(new[] { "W", "c1:x", "c2:x", "c3:x", "c4:x", "E" }, posts.Refs.Select(r => r.Key));
+        // Clear of the posts, not the house: 38 + 6" half post + 1'-6".
+        Assert.Equal(38 + 0.5 + 1.5, posts.LineCoord, 9);
+        // Then the overall, a tier further out. Closure holds: the post string ends on the outside faces.
+        Assert.Equal(DimensionPlanner.Overall, north.Last().Strategy);
+        Assert.Equal(posts.LineCoord + 1.5, north.Last().LineCoord, 9);
+        Assert.Empty(DimensionClosure.Problems(plan.Strings));
+    }
+
+    [Fact]
+    public void Sides_without_posts_and_columns_inside_get_no_column_string()
+    {
+        var posts = PorchPosts();
+        posts.Add(new PlanColumn("inside", 30, 15, 0.5)); // an interior column
+        var plan = DimensionPlanner.Plan(House(), Array.Empty<PlanOpening>(), DimensionPlanner.Strategies.ToList(), 1.5, 1.5, posts);
+        Assert.Single(plan.Strings, s => s.Strategy == DimensionPlanner.Columns);
+        Assert.DoesNotContain(plan.Strings, s => s.Refs.Any(r => r.Key.StartsWith("inside")));
+        // South strings still sit off the house, not off the porch.
+        Assert.Equal(-0.5 - 1.5, plan.Strings.Where(s => s.Side == Side.South).Max(s => s.LineCoord), 9);
+    }
+
+    [Fact]
+    public void A_corner_post_is_located_on_both_sides_it_stands_beyond()
+    {
+        var plan = DimensionPlanner.Plan(House(), Array.Empty<PlanOpening>(), new[] { DimensionPlanner.Columns, DimensionPlanner.Overall }, 1.5, 1.5,
+            new[] { new PlanColumn("corner", 70, 38, 0.5) });
+        Assert.Contains(plan.Strings, s => s.Side == Side.North && s.Refs.Any(r => r.Key == "corner:x"));
+        Assert.Contains(plan.Strings, s => s.Side == Side.East && s.Refs.Any(r => r.Key == "corner:y"));
+    }
+
     // -------------------------------------------------------------- spacing
 
     [Fact]

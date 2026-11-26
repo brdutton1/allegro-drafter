@@ -253,6 +253,9 @@ internal static class Dimensioning
     {
         public List<PlanInteriorWall> Interior { get; } = new();
 
+        /// <summary>Structural and architectural columns in the view (porch posts, timber columns).</summary>
+        public List<PlanColumn> Columns { get; } = new();
+
         /// <summary>The model side at the top of the view on the sheet (north unless the view is rotated).</summary>
         public Side ViewTop { get; init; } = Side.North;
 
@@ -385,6 +388,7 @@ internal static class Dimensioning
         if (noCenter > 0) notes.Add($"{noCenter} door/window(s) weren't located: no Center (Left/Right) reference in {string.Join(", ", missingCenter.Distinct())}. Fix the family.");
         var data = new Extracted(walls, openings, references, notes, level.Elevation) { ViewTop = SideOf(view.UpDirection), Scale = view.Scale > 0 ? view.Scale : 48 };
         ExtractInterior(doc, view, data);
+        ExtractColumns(doc, view, data);
         return data;
     }
 
@@ -424,11 +428,47 @@ internal static class Dimensioning
         if (noFace > 0) data.Notes.Add($"{noFace} interior wall(s) had no usable face and weren't located.");
     }
 
+    /// <summary>
+    /// Columns visible in the view (structural or architectural), measured at their centerlines.
+    /// Center (Left/Right) is the plane across the family's hand direction, Center (Front/Back) the one
+    /// across its facing, so each is matched to the axis it locates. Columns turned off square are skipped and said.
+    /// </summary>
+    private static void ExtractColumns(Document doc, ViewPlan view, Extracted data)
+    {
+        int turned = 0, noCenter = 0;
+        var seen = new HashSet<long>();
+        foreach (var category in new[] { BuiltInCategory.OST_StructuralColumns, BuiltInCategory.OST_Columns })
+        {
+            foreach (var fi in new FilteredElementCollector(doc, view.Id).OfCategory(category).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>())
+            {
+                if (!seen.Add(fi.Id.Value) || fi.Location is not LocationPoint lp) continue;
+                var hand = fi.HandOrientation;
+                var handAlongX = Math.Abs(hand.X) > 0.999;
+                var handAlongY = Math.Abs(hand.Y) > 0.999;
+                if (!handAlongX && !handAlongY) { turned++; continue; }
+                var lr = fi.GetReferences(FamilyInstanceReferenceType.CenterLeftRight).FirstOrDefault();
+                var fb = fi.GetReferences(FamilyInstanceReferenceType.CenterFrontBack).FirstOrDefault();
+                var refX = handAlongX ? lr : fb;
+                var refY = handAlongX ? fb : lr;
+                if (refX is null || refY is null) { noCenter++; continue; }
+
+                var box = fi.get_BoundingBox(view) ?? fi.get_BoundingBox(null);
+                var half = box is null ? 0.5 : Math.Max(box.Max.X - box.Min.X, box.Max.Y - box.Min.Y) / 2;
+                var column = new PlanColumn($"c{fi.Id.Value}", lp.Point.X, lp.Point.Y, half);
+                data.Columns.Add(column);
+                data.References[column.KeyX] = refX;
+                data.References[column.KeyY] = refY;
+            }
+        }
+        if (turned > 0) data.Notes.Add($"{turned} column(s) are turned off square and weren't located. Dimension those by hand.");
+        if (noCenter > 0) data.Notes.Add($"{noCenter} column(s) have no center references in their family and weren't located. Fix the family.");
+    }
+
     public static DimensionPlan Plan(Extracted data, DimensionViewChange change)
     {
         var basis = PlanDimensioning.ParseBasis(change.InteriorBasis);
         var sides = PlanDimensioning.ResolveSides(change.Sides, data.ViewTop);
-        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides);
+        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides, data.Columns);
         if (sides is not null && change.Sides!.Any(s => s is "top" or "bottom" or "left" or "right") && data.ViewTop != Side.North)
             plan = plan with { Notes = plan.Notes.Append($"This view is rotated: the top of the sheet is model {data.ViewTop.ToString().ToLowerInvariant()}.").ToList() };
         if (basis == InteriorBasis.Center && change.Strategies.Contains(PlanDimensioning.Interior))
