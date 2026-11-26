@@ -197,22 +197,37 @@ public sealed record DimensionViewChange(
     bool AllowExisting = false,
     int? ExpectedStrings = null,
     string? InteriorBasis = null,
-    IReadOnlyList<string>? Sides = null) : ProposalChange
+    IReadOnlyList<string>? Sides = null,
+    double? OffsetPaperInches = null,
+    double? StepPaperInches = null) : ProposalChange
 {
+    /// <summary>Office spacing (2026-11-26): first string 3/8" off the outside face on paper, 3/8" between tiers.</summary>
+    public const double OfficeSpacingPaperInches = 0.375;
+
+    /// <summary>Model feet from the face to the first string at this view scale (paper inches win over feet).</summary>
+    public double OffsetAt(int scale) => OffsetPaperInches is { } p ? p * scale / 12.0 : OffsetFeet;
+
+    /// <summary>Model feet between tiers at this view scale.</summary>
+    public double StepAt(int scale) => StepPaperInches is { } p ? p * scale / 12.0 : StepFeet;
+
     public override string Describe()
     {
         var count = ExpectedStrings is null ? "" : $"{ExpectedStrings} ";
         var what = Strategies.All(s => s == "interior") ? "interior" : Strategies.Contains("interior") ? "exterior and interior" : "exterior";
         var basis = Strategies.Contains("interior") ? $", interior walls to {InteriorBasis ?? "face"}" : "";
         var sides = Sides is { Count: > 0 } ? $", {string.Join("/", Sides)} side only" : "";
+        if (OffsetPaperInches is { } o) sides += $", {Paper(o)} off the wall and {Paper(StepPaperInches ?? o)} apart on paper";
         return $"Add {count}{what} dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{sides}{basis}{(DimensionType is null ? "" : $" ({DimensionType})")}";
     }
+
+    private static string Paper(double inches) => Math.Abs(inches * 8 - Math.Round(inches * 8)) < 1e-9 && inches < 1 ? $"{(int)Math.Round(inches * 8)}/8\"".Replace("2/8", "1/4").Replace("4/8", "1/2").Replace("6/8", "3/4") : $"{inches}\"";
 
     public bool Equals(DimensionViewChange? other) =>
         other is not null && ViewName == other.ViewName && ViewType == other.ViewType && DimensionType == other.DimensionType
         && OffsetFeet == other.OffsetFeet && StepFeet == other.StepFeet && AllowExisting == other.AllowExisting
         && ExpectedStrings == other.ExpectedStrings && InteriorBasis == other.InteriorBasis && Strategies.SequenceEqual(other.Strategies)
-        && (Sides ?? Array.Empty<string>()).SequenceEqual(other.Sides ?? Array.Empty<string>());
+        && (Sides ?? Array.Empty<string>()).SequenceEqual(other.Sides ?? Array.Empty<string>())
+        && OffsetPaperInches == other.OffsetPaperInches && StepPaperInches == other.StepPaperInches;
 
     public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
 }

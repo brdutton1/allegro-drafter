@@ -211,8 +211,10 @@ public static class ToolCatalog
                     "interiorBasis": { "type": "string", "enum": ["face","center"], "description": "Interior walls measured to one consistent face (west/south, default) or to centerlines." },
                     "sides": { "type": "array", "items": { "type": "string", "enum": ["top","bottom","left","right","north","south","east","west"] }, "description": "Only these exterior sides. top/bottom/left/right are as the view sits on the sheet; north/south/east/west are model directions. Leave out for every side. Interior strings are drawn only if 'interior' is in strategies. Use with allowExisting to fill in one side the designer cleared." },
                     "dimensionType": { "type": "string", "description": "Exact name from get_standards dimensionTypes, e.g. 'Linear: Arch 3/32\"'. Omit for the project default." },
-                    "offsetFeet": { "type": "number", "description": "Model feet from the building face to the first string. Default 4." },
-                    "stepFeet": { "type": "number", "description": "Model feet between tiers. Default 2." },
+                    "offsetPaperInches": { "type": "number", "description": "Paper inches from the outside face to the first string. Office default 3/8 (0.375)." },
+                    "stepPaperInches": { "type": "number", "description": "Paper inches between tiers. Office default 3/8 (0.375)." },
+                    "offsetFeet": { "type": "number", "description": "Model feet instead of paper inches. Only if the designer asks." },
+                    "stepFeet": { "type": "number", "description": "Model feet instead of paper inches. Only if the designer asks." },
                     "allowExisting": { "type": "boolean", "description": "Add even if the view already has dimensions. Default false." } },
                   "additionalProperties": false } } },
               "additionalProperties": false }

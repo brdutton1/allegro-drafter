@@ -265,9 +265,18 @@ public static class ProposalRequestParser
             if (strategies.Count == 0) throw new ToolArgumentException($"{path}.strategies can't be empty.");
             var bad = strategies.Where(s => !PlanDimensioning.AllStrategies.Contains(s)).ToList();
             if (bad.Count > 0) throw new ToolArgumentException($"{path}.strategies: unknown '{string.Join("', '", bad)}'. Use {string.Join(", ", PlanDimensioning.AllStrategies)}.");
-            var offset = Args.OptionalDouble(item, "offsetFeet", path) ?? 4.0;
-            var step = Args.OptionalDouble(item, "stepFeet", path) ?? 2.0;
-            if (offset <= 0 || step <= 0) throw new ToolArgumentException($"{path}: offsetFeet and stepFeet must be positive.");
+            // Spacing: model feet if given, otherwise office paper spacing (3/8"), scaled to the view in Revit.
+            var offsetFeet = Args.OptionalDouble(item, "offsetFeet", path);
+            var stepFeet = Args.OptionalDouble(item, "stepFeet", path);
+            var offsetPaper = Args.OptionalDouble(item, "offsetPaperInches", path);
+            var stepPaper = Args.OptionalDouble(item, "stepPaperInches", path);
+            if (offsetFeet is not null && offsetPaper is not null) throw new ToolArgumentException($"{path}: give offsetFeet or offsetPaperInches, not both.");
+            if (stepFeet is not null && stepPaper is not null) throw new ToolArgumentException($"{path}: give stepFeet or stepPaperInches, not both.");
+            if (offsetFeet is null) offsetPaper ??= DimensionViewChange.OfficeSpacingPaperInches;
+            if (stepFeet is null) stepPaper ??= DimensionViewChange.OfficeSpacingPaperInches;
+            var offset = offsetFeet ?? 4.0;
+            var step = stepFeet ?? 2.0;
+            if (offset <= 0 || step <= 0 || offsetPaper <= 0 || stepPaper <= 0) throw new ToolArgumentException($"{path}: offsetFeet and stepFeet must be positive.");
             var basis = Args.OptionalString(item, "interiorBasis", path)?.ToLowerInvariant();
             if (basis is not null && !PlanDimensioning.Bases.Contains(basis))
                 throw new ToolArgumentException($"{path}.interiorBasis must be one of: {string.Join(", ", PlanDimensioning.Bases)}.");
@@ -283,7 +292,9 @@ public static class ProposalRequestParser
                 offset, step,
                 Args.OptionalBool(item, "allowExisting", path),
                 InteriorBasis: basis,
-                Sides: sides));
+                Sides: sides,
+                OffsetPaperInches: offsetPaper,
+                StepPaperInches: stepPaper));
         }
         return changes;
     }

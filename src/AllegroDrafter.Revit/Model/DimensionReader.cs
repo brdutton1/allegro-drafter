@@ -28,6 +28,14 @@ internal static class DimensionReader
         double minX = wallBoxes.Count > 0 ? wallBoxes.Min(b => b!.Min.X) : 0, maxX = wallBoxes.Count > 0 ? wallBoxes.Max(b => b!.Max.X) : 0;
         double minY = wallBoxes.Count > 0 ? wallBoxes.Min(b => b!.Min.Y) : 0, maxY = wallBoxes.Count > 0 ? wallBoxes.Max(b => b!.Max.Y) : 0;
 
+        // The plan's outline from the exterior wall centerlines on the view's level: a string sitting
+        // outside it is an exterior string, and the side it's on is the side with open sky beyond it.
+        var level = (view as ViewPlan)?.GenLevel;
+        var footprint = new Core.Drafting.Footprint(new FilteredElementCollector(doc, view.Id).OfClass(typeof(Wall)).Cast<Wall>()
+            .Where(w => (level is null || w.LevelId == level.Id) && w.WallType.Function is WallFunction.Exterior or WallFunction.Foundation)
+            .Select(w => w.Location is LocationCurve { Curve: Line l } ? l : null).Where(l => l is not null)
+            .Select((l, i) => new Core.Drafting.PlanWall($"w{i}", l!.GetEndPoint(0).X, l.GetEndPoint(0).Y, l.GetEndPoint(1).X, l.GetEndPoint(1).Y, 0)));
+
         var strings = new List<Row>();
         var other = new List<object>();
         foreach (var d in new FilteredElementCollector(doc, view.Id).OfClass(typeof(Dimension)).Cast<Dimension>().Where(d => d.OwnerViewId == view.Id))
@@ -41,23 +49,32 @@ internal static class DimensionReader
             var dir = line.Direction;
             var modelHorizontal = Math.Abs(dir.Y) < 0.01;
             var modelVertical = Math.Abs(dir.X) < 0.01;
+            // A point on the string at its middle: the average of its segment origins.
+            var mid = d.NumberOfSegments > 0
+                ? d.Segments.Cast<DimensionSegment>().Select(s => s.Origin).Aggregate(XYZ.Zero, (acc, p) => acc + p) / d.NumberOfSegments
+                : d.Origin ?? line.Origin;
             string side;
-            double coord, beyond;
-            if (modelHorizontal)
+            double coord, beyond = 0;
+            if (modelHorizontal || modelVertical)
             {
-                coord = line.Origin.Y;
-                (side, beyond) = coord > maxY ? ("north", coord - maxY) : coord < minY ? ("south", minY - coord) : ("inside", 0);
-            }
-            else if (modelVertical)
-            {
-                coord = line.Origin.X;
-                (side, beyond) = coord > maxX ? ("east", coord - maxX) : coord < minX ? ("west", minX - coord) : ("inside", 0);
+                coord = modelHorizontal ? mid.Y : mid.X;
+                var found = footprint.Count == 0 ? null : footprint.SideOf(mid.X, mid.Y, checkNorthSouth: modelHorizontal);
+                if (found is { } s)
+                {
+                    side = s.ToString().ToLowerInvariant();
+                    // How far off the wall it faces: the ray back toward the building.
+                    var (dx, dy) = s switch { Core.Drafting.Side.North => (0, -1), Core.Drafting.Side.South => (0, 1), Core.Drafting.Side.East => (-1, 0), _ => (1, 0) };
+                    beyond = footprint.DistanceTo(mid.X, mid.Y, dx, dy) ?? 0;
+                }
+                else
+                {
+                    side = footprint.Count > 0 && footprint.IsInside(mid.X, mid.Y) ? "inside" : "outside (in a courtyard or past an open side)";
+                }
             }
             else
             {
                 coord = 0;
                 side = "angled";
-                beyond = 0;
             }
 
             var refs = new List<object>();
@@ -70,7 +87,7 @@ internal static class DimensionReader
                 id = d.Id.Value,
                 type = typeName,
                 side,
-                onSheet = side is "inside" or "angled" ? side : SheetSide(side, view, rotation),
+                onSheet = side is "north" or "south" or "east" or "west" ? SheetSide(side, view, rotation) : side,
                 runs = modelHorizontal ? "east-west" : modelVertical ? "north-south" : "angled",
                 lineAtFeet = Math.Round(coord, 4),
                 outFromBuildingFeet = Math.Round(beyond, 3),
@@ -81,7 +98,8 @@ internal static class DimensionReader
         }
 
         // Order each side's strings out from the building: tier 1 is closest.
-        var ordered = strings.GroupBy(s => s.Side).SelectMany(g => g.OrderBy(s => s.Beyond).Select((s, i) => new { tier = g.Key is "inside" or "angled" ? (int?)null : i + 1, s.Data })).ToList();
+        // Distance is to the facade wall right behind the string, so a jogged side's strings still order correctly.
+        var ordered = strings.GroupBy(s => s.Side).SelectMany(g => g.OrderBy(s => s.Beyond).Select((s, i) => new { tier = g.Key is "north" or "south" or "east" or "west" ? (int?)i + 1 : null, s.Data })).ToList();
 
         return new
         {

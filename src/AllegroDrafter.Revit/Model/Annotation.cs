@@ -1,4 +1,4 @@
-using AllegroDrafter.Core;
+﻿using AllegroDrafter.Core;
 using AllegroDrafter.Core.Drafting;
 using AllegroDrafter.Core.Proposals;
 using Autodesk.Revit.DB;
@@ -255,6 +255,9 @@ internal static class Dimensioning
 
         /// <summary>The model side at the top of the view on the sheet (north unless the view is rotated).</summary>
         public Side ViewTop { get; init; } = Side.North;
+
+        /// <summary>The view scale (48 for 1/4" = 1'-0"), to turn paper spacing into model feet.</summary>
+        public int Scale { get; init; } = 48;
     }
 
     private static Side SideOf(XYZ v) =>
@@ -293,6 +296,8 @@ internal static class Dimensioning
         var notes = new List<string>();
         var level = view.GenLevel!;
         int curtain = 0, noFace = 0, noCenter = 0;
+        var straight = new List<(Wall Wall, string Key, XYZ A, XYZ B)>();
+        var missingCenter = new List<string>();
 
         // Foundation walls count as the outside on a foundation plan: their exterior face is the face of concrete.
         var exterior = new FilteredElementCollector(doc, view.Id).OfClass(typeof(Wall)).Cast<Wall>()
@@ -319,16 +324,38 @@ internal static class Dimensioning
                 continue;
             }
 
-            var faceRef = HostObjectUtils.GetSideFaces(wall, ShellLayerType.Exterior).FirstOrDefault();
-            var face = faceRef is null ? null : wall.GetGeometryObjectFromReference(faceRef) as PlanarFace;
-            if (faceRef is null || face is null)
+            straight.Add((wall, key, a, b));
+        }
+
+        // Which side is outside comes from the plan's shape, not from how each wall was drawn:
+        // a wall modeled flipped still faces the way the outline says.
+        var footprint = new Footprint(straight.Select(s => new PlanWall(s.Key, s.A.X, s.A.Y, s.B.X, s.B.Y, 0)));
+        var flipped = 0;
+        foreach (var (wall, key, a, b) in straight)
+        {
+            var northSouth = Math.Abs(b.X - a.X) < PlanWall.Tolerance;
+            var probe = new PlanWall(key, a.X, a.Y, b.X, b.Y, 0);
+            var facing = footprint.FacingOf(probe) ?? FacingOf(wall);
+            if (probe.IsOrthogonal && footprint.FacingOf(probe) is { } byShape && byShape != FacingOf(wall)) flipped++;
+
+            // The outside face (outside of finish): of the two side faces, the one further toward the facing side.
+            Reference? faceRef = null;
+            double faceCoord = 0;
+            var outward = facing is Side.North or Side.East ? 1 : -1;
+            foreach (var shell in new[] { ShellLayerType.Exterior, ShellLayerType.Interior })
+            {
+                var r = HostObjectUtils.GetSideFaces(wall, shell).FirstOrDefault();
+                if (r is null || wall.GetGeometryObjectFromReference(r) is not PlanarFace f) continue;
+                var coord = northSouth ? f.Origin.X : f.Origin.Y;
+                if (faceRef is null || coord * outward > faceCoord * outward) { faceRef = r; faceCoord = coord; }
+            }
+            if (faceRef is null)
             {
                 noFace++;
                 continue;
             }
 
-            var northSouth = Math.Abs(b.X - a.X) < PlanWall.Tolerance;
-            var planWall = new PlanWall(key, a.X, a.Y, b.X, b.Y, northSouth ? face.Origin.X : face.Origin.Y, FacingOf(wall));
+            var planWall = new PlanWall(key, a.X, a.Y, b.X, b.Y, faceCoord, facing);
             walls.Add(planWall);
             references[key] = faceRef;
             references[InteriorDimensionPlanner.ExteriorPrefix + key] = faceRef; // interior strings close to the same face
@@ -342,6 +369,7 @@ internal static class Dimensioning
                 if (centerRef is null)
                 {
                     noCenter++;
+                    missingCenter.Add($"{fi.Symbol?.FamilyName}: {fi.Symbol?.Name}");
                     continue;
                 }
                 var openingKey = $"o{fi.Id.Value}";
@@ -349,11 +377,13 @@ internal static class Dimensioning
                 references[openingKey] = centerRef;
             }
         }
-
+        if (flipped > 0) notes.Add($"{flipped} exterior wall(s) are modeled with their exterior side facing in; measured to their true outside face.");
+        if (footprint.Count > 0 && straight.Count > 0 && walls.Count(w => w.IsOrthogonal) > 0 && straight.All(s => footprint.FacingOf(new PlanWall(s.Key, s.A.X, s.A.Y, s.B.X, s.B.Y, 0)) is null))
+            notes.Add("The exterior walls don't close a loop on this level, so outside was read from how the walls were drawn. Check the strings.");
         if (curtain > 0) notes.Add($"{curtain} curtain/stacked exterior wall(s) skipped.");
         if (noFace > 0) notes.Add($"{noFace} wall(s) had no usable exterior face and were skipped.");
-        if (noCenter > 0) notes.Add($"{noCenter} door/window famil(ies) have no Center (Left/Right) reference and weren't located. Fix the family.");
-        var data = new Extracted(walls, openings, references, notes, level.Elevation) { ViewTop = SideOf(view.UpDirection) };
+        if (noCenter > 0) notes.Add($"{noCenter} door/window(s) weren't located: no Center (Left/Right) reference in {string.Join(", ", missingCenter.Distinct())}. Fix the family.");
+        var data = new Extracted(walls, openings, references, notes, level.Elevation) { ViewTop = SideOf(view.UpDirection), Scale = view.Scale > 0 ? view.Scale : 48 };
         ExtractInterior(doc, view, data);
         return data;
     }
@@ -398,7 +428,7 @@ internal static class Dimensioning
     {
         var basis = PlanDimensioning.ParseBasis(change.InteriorBasis);
         var sides = PlanDimensioning.ResolveSides(change.Sides, data.ViewTop);
-        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetFeet, change.StepFeet, basis, sides);
+        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides);
         if (sides is not null && change.Sides!.Any(s => s is "top" or "bottom" or "left" or "right") && data.ViewTop != Side.North)
             plan = plan with { Notes = plan.Notes.Append($"This view is rotated: the top of the sheet is model {data.ViewTop.ToString().ToLowerInvariant()}.").ToList() };
         if (basis == InteriorBasis.Center && change.Strategies.Contains(PlanDimensioning.Interior))
