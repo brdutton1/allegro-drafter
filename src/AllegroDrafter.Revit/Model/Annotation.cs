@@ -249,7 +249,19 @@ internal static class Notes
 /// <summary>Exterior dimension strings: pull walls/openings from the plan, plan in Core, draw in Revit.</summary>
 internal static class Dimensioning
 {
-    public sealed record Extracted(List<PlanWall> Walls, List<PlanOpening> Openings, Dictionary<string, Reference> References, List<string> Notes, double Z);
+    public sealed record Extracted(List<PlanWall> Walls, List<PlanOpening> Openings, Dictionary<string, Reference> References, List<string> Notes, double Z)
+    {
+        public List<PlanInteriorWall> Interior { get; } = new();
+    }
+
+    private static bool IsOutside(WallFunction f) => f is WallFunction.Exterior or WallFunction.Foundation;
+
+    /// <summary>Which way a wall's exterior face looks, from its orientation (flips included).</summary>
+    private static Side FacingOf(Wall wall)
+    {
+        var o = wall.Orientation;
+        return Math.Abs(o.X) >= Math.Abs(o.Y) ? (o.X >= 0 ? Side.East : Side.West) : (o.Y >= 0 ? Side.North : Side.South);
+    }
 
     public static ViewPlan? ResolvePlan(Document doc, DimensionViewChange change, out string? error)
     {
@@ -276,10 +288,11 @@ internal static class Dimensioning
         var level = view.GenLevel!;
         int curtain = 0, noFace = 0, noCenter = 0;
 
+        // Foundation walls count as the outside on a foundation plan: their exterior face is the face of concrete.
         var exterior = new FilteredElementCollector(doc, view.Id).OfClass(typeof(Wall)).Cast<Wall>()
-            .Where(w => w.LevelId == level.Id && w.WallType.Function == WallFunction.Exterior)
+            .Where(w => w.LevelId == level.Id && IsOutside(w.WallType.Function))
             .ToList();
-        if (exterior.Count == 0) notes.Add($"No walls with type function Exterior on {level.Name} in this view. Check the wall types' Function parameter.");
+        if (exterior.Count == 0) notes.Add($"No walls with type function Exterior or Foundation on {level.Name} in this view. Check the wall types' Function parameter.");
 
         foreach (var wall in exterior)
         {
@@ -309,9 +322,10 @@ internal static class Dimensioning
             }
 
             var northSouth = Math.Abs(b.X - a.X) < PlanWall.Tolerance;
-            var planWall = new PlanWall(key, a.X, a.Y, b.X, b.Y, northSouth ? face.Origin.X : face.Origin.Y);
+            var planWall = new PlanWall(key, a.X, a.Y, b.X, b.Y, northSouth ? face.Origin.X : face.Origin.Y, FacingOf(wall));
             walls.Add(planWall);
             references[key] = faceRef;
+            references[InteriorDimensionPlanner.ExteriorPrefix + key] = faceRef; // interior strings close to the same face
             if (!planWall.IsOrthogonal) continue;
 
             foreach (var insertId in wall.FindInserts(true, false, false, false))
@@ -333,11 +347,59 @@ internal static class Dimensioning
         if (curtain > 0) notes.Add($"{curtain} curtain/stacked exterior wall(s) skipped.");
         if (noFace > 0) notes.Add($"{noFace} wall(s) had no usable exterior face and were skipped.");
         if (noCenter > 0) notes.Add($"{noCenter} door/window famil(ies) have no Center (Left/Right) reference and weren't located. Fix the family.");
-        return new Extracted(walls, openings, references, notes, level.Elevation);
+        var data = new Extracted(walls, openings, references, notes, level.Elevation);
+        ExtractInterior(doc, view, data);
+        return data;
     }
 
-    public static DimensionPlan Plan(Extracted data, DimensionViewChange change) =>
-        DimensionPlanner.Plan(data.Walls, data.Openings, change.Strategies.ToList(), change.OffsetFeet, change.StepFeet);
+    /// <summary>
+    /// Interior walls on the view's level: straight, basic, Function not Exterior. Each gets the
+    /// reference to its west (north-south wall) or south (east-west wall) face, the one face every
+    /// interior string measures to, so the numbers read consistently across the plan.
+    /// </summary>
+    private static void ExtractInterior(Document doc, ViewPlan view, Extracted data)
+    {
+        var level = view.GenLevel!;
+        int angled = 0, noFace = 0;
+        foreach (var wall in new FilteredElementCollector(doc, view.Id).OfClass(typeof(Wall)).Cast<Wall>()
+                     .Where(w => w.LevelId == level.Id && !IsOutside(w.WallType.Function) && w.WallType.Function != WallFunction.Retaining && w.WallType.Kind == WallKind.Basic))
+        {
+            if (wall.Location is not LocationCurve { Curve: Line line }) { angled++; continue; }
+            var a = line.GetEndPoint(0);
+            var b = line.GetEndPoint(1);
+            var key = $"i{wall.Id.Value}";
+            var planWall = new PlanInteriorWall(key, a.X, a.Y, b.X, b.Y, wall.Width);
+            if (!planWall.IsOrthogonal) { angled++; continue; }
+
+            Reference? best = null;
+            var bestCoord = double.MaxValue;
+            foreach (var shell in new[] { ShellLayerType.Exterior, ShellLayerType.Interior })
+            {
+                var r = HostObjectUtils.GetSideFaces(wall, shell).FirstOrDefault();
+                if (r is null || wall.GetGeometryObjectFromReference(r) is not PlanarFace f) continue;
+                var coord = planWall.IsNorthSouth ? f.Origin.X : f.Origin.Y;
+                if (coord < bestCoord) { best = r; bestCoord = coord; }
+            }
+            if (best is null) { noFace++; continue; }
+            data.Interior.Add(planWall);
+            data.References[key] = best;
+        }
+        if (angled > 0) data.Notes.Add($"{angled} angled or curved interior wall(s) skipped. Locate those by hand.");
+        if (noFace > 0) data.Notes.Add($"{noFace} interior wall(s) had no usable face and weren't located.");
+    }
+
+    public static DimensionPlan Plan(Extracted data, DimensionViewChange change)
+    {
+        var basis = PlanDimensioning.ParseBasis(change.InteriorBasis);
+        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetFeet, change.StepFeet, basis);
+        if (basis == InteriorBasis.Center && change.Strategies.Contains(PlanDimensioning.Interior))
+        {
+            // Centerline references need a check in Revit first (plan: spike 1). Until then the strings
+            // measure to the west/south face, and say so.
+            return plan with { Notes = plan.Notes.Append("Interior strings measure to the west/south face of each wall; centerline dimensions come after they're checked in Revit.").ToList() };
+        }
+        return plan;
+    }
 
     /// <summary>Draws every string. A string Revit refuses is rolled back alone and reported.</summary>
     public static (List<long> Created, List<string> Notes) Draw(Document doc, ViewPlan view, DimensionViewChange change)

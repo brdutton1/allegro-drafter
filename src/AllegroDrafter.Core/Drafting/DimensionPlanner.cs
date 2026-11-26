@@ -5,10 +5,21 @@ public enum Side { North, South, East, West }
 /// <summary>
 /// An exterior wall in plan, in feet. FaceCoord is the exterior face position:
 /// X for a north-south wall, Y for an east-west wall.
+/// Facing: the side its exterior face looks toward (from the wall's orientation in the model).
+/// With Facing on every wall the planner sorts walls by the way they face, which is right on
+/// L, U and T plans; without it, it falls back to splitting the building at its midline.
 /// </summary>
-public sealed record PlanWall(string Key, double X1, double Y1, double X2, double Y2, double FaceCoord)
+public sealed record PlanWall(string Key, double X1, double Y1, double X2, double Y2, double FaceCoord, Side? Facing = null)
 {
     public const double Tolerance = 0.01; // feet, about 1/8"
+
+    /// <summary>Wall ends closer than this are joined (centerlines of joined walls meet within a wall thickness).</summary>
+    public const double JoinTolerance = 1.0;
+
+    public bool Touches(PlanWall other) =>
+        Ends.Any(a => other.Ends.Any(b => Math.Abs(a.X - b.X) <= JoinTolerance && Math.Abs(a.Y - b.Y) <= JoinTolerance));
+
+    private (double X, double Y)[] Ends => new[] { (X1, Y1), (X2, Y2) };
 
     public bool IsNorthSouth => Math.Abs(X2 - X1) < Tolerance && Math.Abs(Y2 - Y1) >= Tolerance;
     public bool IsEastWest => Math.Abs(Y2 - Y1) < Tolerance && Math.Abs(X2 - X1) >= Tolerance;
@@ -87,6 +98,11 @@ public static class DimensionPlanner
         var eastWest = straight.Where(w => w.IsEastWest).ToList();
         var wallsByKey = straight.ToDictionary(w => w.Key);
 
+        // Facing known for every wall: sort by which way each wall's exterior face looks.
+        var byFacing = straight.All(w => w.Facing is not null);
+        if (!byFacing && straight.Any(w => w.Facing is not null))
+            notes.Add("Some walls had no exterior direction; the building was split at its midline instead. Check the strings on L or U plans.");
+
         var strings = new List<DimensionString>();
         foreach (var side in new[] { Side.North, Side.South, Side.East, Side.West })
         {
@@ -99,14 +115,29 @@ public static class DimensionPlanner
                 continue;
             }
 
-            // Walls on this half of the building.
-            var nearSide = perpendicular.Where(w => side switch
-            {
-                Side.North => w.MaxY >= midY,
-                Side.South => w.MinY <= midY,
-                Side.East => w.MaxX >= midX,
-                _ => w.MinX <= midX,
-            }).ToList();
+            // Walls parallel to the dimension line whose exterior faces this side: the facade seen from here.
+            var parallel = horizontal ? eastWest : northSouth;
+            var facade = byFacing
+                ? parallel.Where(w => w.Facing == side).ToList()
+                : parallel.Where(w => side switch
+                {
+                    Side.North => w.MinY >= midY,
+                    Side.South => w.MaxY <= midY,
+                    Side.East => w.MinX >= midX,
+                    _ => w.MaxX <= midX,
+                }).ToList();
+
+            // Perpendicular walls that make the jogs in that facade: they join a facade wall.
+            // Midline fallback: perpendicular walls on this half of the building.
+            var nearSide = byFacing
+                ? perpendicular.Where(w => facade.Any(f => f.Touches(w))).ToList()
+                : perpendicular.Where(w => side switch
+                {
+                    Side.North => w.MaxY >= midY,
+                    Side.South => w.MinY <= midY,
+                    Side.East => w.MaxX >= midX,
+                    _ => w.MinX <= midX,
+                }).ToList();
 
             var outer = new[]
             {
@@ -130,14 +161,8 @@ public static class DimensionPlanner
                         break;
 
                     case Openings:
-                        // Openings live in walls parallel to the dimension line, on this side's half.
-                        var facing = (horizontal ? eastWest : northSouth).Where(w => side switch
-                        {
-                            Side.North => w.MinY >= midY,
-                            Side.South => w.MaxY <= midY,
-                            Side.East => w.MinX >= midX,
-                            _ => w.MaxX <= midX,
-                        }).Select(w => w.Key).ToHashSet();
+                        // Openings live in the facade walls of this side.
+                        var facing = facade.Select(w => w.Key).ToHashSet();
                         var inSide = openings.Where(o => facing.Contains(o.WallKey) && wallsByKey.ContainsKey(o.WallKey)).ToList();
                         if (inSide.Count == 0) continue; // Nothing to locate: no opening string on this side.
                         refs.AddRange(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord)));

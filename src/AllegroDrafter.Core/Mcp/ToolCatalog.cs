@@ -190,15 +190,16 @@ public static class ToolCatalog
               "additionalProperties": false }
             """, ReadOnly: false),
 
-        new ToolDefinition(ToolNames.ProposeDimensions, "Propose exterior dimensions",
-            "Proposes rule-based exterior dimension strings on a floor plan, in tiers from the building out: 'openings' (door/window centerlines), 'walls' (every jog), 'overall'. Straight walls only; angled walls are reported, not guessed. Refuses views that already have dimensions unless allowExisting is true.",
+        new ToolDefinition(ToolNames.ProposeDimensions, "Propose plan dimensions",
+            "Proposes rule-based dimension strings on a floor plan. Exterior tiers from the building out: 'openings' (door/window centerlines), 'walls' (every jog), 'overall'. 'interior': strings that locate every interior wall, chained to the exterior faces, never running along a wall. Walls are sorted by the way their exterior faces, so L and U plans come out right. Straight walls only; angled walls are reported, not guessed. Refuses views that already have dimensions unless allowExisting is true.",
             $$"""
             { "type": "object", "required": ["title","views"], "properties": {
                 {{TitleRationale}},
                 "views": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["viewName"], "properties": {
                     "viewName": { "type": "string", "description": "A floor plan view." },
                     {{ViewTypeProp}},
-                    "strategies": { "type": "array", "items": { "type": "string", "enum": ["openings","walls","overall"] }, "description": "Default all three." },
+                    "strategies": { "type": "array", "items": { "type": "string", "enum": ["openings","walls","overall","interior"] }, "description": "Default all four." },
+                    "interiorBasis": { "type": "string", "enum": ["face","center"], "description": "Interior walls measured to one consistent face (west/south, default) or to centerlines." },
                     "dimensionType": { "type": "string", "description": "Exact name from get_standards dimensionTypes, e.g. 'Linear: Arch 3/32\"'. Omit for the project default." },
                     "offsetFeet": { "type": "number", "description": "Model feet from the building face to the first string. Default 4." },
                     "stepFeet": { "type": "number", "description": "Model feet between tiers. Default 2." },

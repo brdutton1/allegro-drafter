@@ -261,20 +261,24 @@ public static class ProposalRequestParser
             var path = $"views[{i}]";
             var item = Args.ObjectAt(list, i, "views");
             var strategies = Args.OptionalStringArray(item, "strategies", path)?.Select(s => s.ToLowerInvariant()).Distinct().ToList()
-                ?? DimensionPlanner.Strategies.ToList();
+                ?? PlanDimensioning.AllStrategies.ToList();
             if (strategies.Count == 0) throw new ToolArgumentException($"{path}.strategies can't be empty.");
-            var bad = strategies.Where(s => !DimensionPlanner.Strategies.Contains(s)).ToList();
-            if (bad.Count > 0) throw new ToolArgumentException($"{path}.strategies: unknown '{string.Join("', '", bad)}'. Use {string.Join(", ", DimensionPlanner.Strategies)}.");
+            var bad = strategies.Where(s => !PlanDimensioning.AllStrategies.Contains(s)).ToList();
+            if (bad.Count > 0) throw new ToolArgumentException($"{path}.strategies: unknown '{string.Join("', '", bad)}'. Use {string.Join(", ", PlanDimensioning.AllStrategies)}.");
             var offset = Args.OptionalDouble(item, "offsetFeet", path) ?? 4.0;
             var step = Args.OptionalDouble(item, "stepFeet", path) ?? 2.0;
             if (offset <= 0 || step <= 0) throw new ToolArgumentException($"{path}: offsetFeet and stepFeet must be positive.");
+            var basis = Args.OptionalString(item, "interiorBasis", path)?.ToLowerInvariant();
+            if (basis is not null && !PlanDimensioning.Bases.Contains(basis))
+                throw new ToolArgumentException($"{path}.interiorBasis must be one of: {string.Join(", ", PlanDimensioning.Bases)}.");
             changes.Add(new DimensionViewChange(
                 Args.RequiredString(item, "viewName", path),
                 strategies,
                 Args.OptionalString(item, "dimensionType", path),
                 Args.OptionalString(item, "viewType", path),
                 offset, step,
-                Args.OptionalBool(item, "allowExisting", path)));
+                Args.OptionalBool(item, "allowExisting", path),
+                InteriorBasis: basis));
         }
         return changes;
     }

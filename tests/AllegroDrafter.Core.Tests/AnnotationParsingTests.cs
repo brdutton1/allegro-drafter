@@ -93,12 +93,30 @@ public class AnnotationParsingTests
     {
         var dims = Assert.IsType<DimensionViewChange>(Assert.Single(Parse(ToolNames.ProposeDimensions,
             """{ "title": "t", "views": [ { "viewName": "Level 1" } ] }""").Changes));
-        Assert.Equal(new[] { "openings", "walls", "overall" }, dims.Strategies);
+        Assert.Equal(new[] { "openings", "walls", "overall", "interior" }, dims.Strategies);
         Assert.Equal((4.0, 2.0, false), (dims.OffsetFeet, dims.StepFeet, dims.AllowExisting));
-        Assert.Contains("Add 8 exterior", (dims with { ExpectedStrings = 8 }).Describe());
+        Assert.Null(dims.InteriorBasis);
+        Assert.Contains("Add 8 exterior and interior", (dims with { ExpectedStrings = 8 }).Describe());
+        Assert.Contains("interior walls to face", dims.Describe());
+    }
+
+    [Fact]
+    public void Exterior_only_and_interior_only_and_basis_parse()
+    {
+        var ext = Assert.IsType<DimensionViewChange>(Assert.Single(Parse(ToolNames.ProposeDimensions,
+            """{ "title": "t", "views": [ { "viewName": "L1", "strategies": ["overall"] } ] }""").Changes));
+        Assert.StartsWith("Add exterior", ext.Describe());
+        Assert.DoesNotContain("interior walls", ext.Describe());
+
+        var inner = Assert.IsType<DimensionViewChange>(Assert.Single(Parse(ToolNames.ProposeDimensions,
+            """{ "title": "t", "views": [ { "viewName": "L1", "strategies": ["interior"], "interiorBasis": "Center" } ] }""").Changes));
+        Assert.Equal("center", inner.InteriorBasis);
+        Assert.StartsWith("Add interior", inner.Describe());
+        Assert.NotEqual(inner, inner with { InteriorBasis = "face" });
     }
 
     [Theory]
+    [InlineData("""{ "viewName": "L1", "interiorBasis": "stud" }""", "interiorBasis must be one of")]
     [InlineData("""{ "viewName": "L1", "strategies": ["radial"] }""", "unknown 'radial'")]
     [InlineData("""{ "viewName": "L1", "strategies": [] }""", "can't be empty")]
     [InlineData("""{ "viewName": "L1", "offsetFeet": 0 }""", "must be positive")]

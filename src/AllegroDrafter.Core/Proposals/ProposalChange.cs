@@ -183,7 +183,10 @@ public sealed record TextNoteChange(
     }
 }
 
-/// <summary>Rule-based exterior dimension strings on a floor plan.</summary>
+/// <summary>
+/// Rule-based dimension strings on a floor plan: exterior tiers (openings, walls, overall) and
+/// interior strings locating every interior wall (InteriorBasis: "face" or "center").
+/// </summary>
 public sealed record DimensionViewChange(
     string ViewName,
     IReadOnlyList<string> Strategies,
@@ -192,18 +195,21 @@ public sealed record DimensionViewChange(
     double OffsetFeet = 4.0,
     double StepFeet = 2.0,
     bool AllowExisting = false,
-    int? ExpectedStrings = null) : ProposalChange
+    int? ExpectedStrings = null,
+    string? InteriorBasis = null) : ProposalChange
 {
     public override string Describe()
     {
         var count = ExpectedStrings is null ? "" : $"{ExpectedStrings} ";
-        return $"Add {count}exterior dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{(DimensionType is null ? "" : $" ({DimensionType})")}";
+        var what = Strategies.All(s => s == "interior") ? "interior" : Strategies.Contains("interior") ? "exterior and interior" : "exterior";
+        var basis = Strategies.Contains("interior") ? $", interior walls to {InteriorBasis ?? "face"}" : "";
+        return $"Add {count}{what} dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{basis}{(DimensionType is null ? "" : $" ({DimensionType})")}";
     }
 
     public bool Equals(DimensionViewChange? other) =>
         other is not null && ViewName == other.ViewName && ViewType == other.ViewType && DimensionType == other.DimensionType
         && OffsetFeet == other.OffsetFeet && StepFeet == other.StepFeet && AllowExisting == other.AllowExisting
-        && ExpectedStrings == other.ExpectedStrings && Strategies.SequenceEqual(other.Strategies);
+        && ExpectedStrings == other.ExpectedStrings && InteriorBasis == other.InteriorBasis && Strategies.SequenceEqual(other.Strategies);
 
     public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
 }
