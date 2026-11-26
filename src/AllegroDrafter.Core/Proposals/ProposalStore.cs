@@ -39,19 +39,56 @@ public sealed class ProposalStore
     /// <summary>Raised after any change. May fire on any thread.</summary>
     public event EventHandler? Changed;
 
-    public Proposal Add(string documentTitle, ProposalRequest request)
+    public const string FinishDraftingUser = "Finish Drafting";
+
+    public Proposal Add(string documentTitle, ProposalRequest request) => AddCore(documentTitle, request, null).Added;
+
+    /// <summary>
+    /// Queues a Finish Drafting batch. A project only ever has one open Finish Drafting batch:
+    /// any older one still pending or failed for the same project (left over from a Stop, or from
+    /// before Revit closed) is rejected in the same step, so the same work can't be approved twice.
+    /// The new batch was planned from the model as it is now, so it's the one that's right.
+    /// </summary>
+    public (Proposal Added, IReadOnlyList<Proposal> Replaced) AddFinishBatch(string documentTitle, ProposalRequest request, string finishStep)
+    {
+        if (string.IsNullOrWhiteSpace(finishStep)) throw new ArgumentException("A Finish Drafting batch needs its step id.", nameof(finishStep));
+        return AddCore(documentTitle, request, finishStep);
+    }
+
+    /// <summary>Open Finish Drafting batches for a project (normally zero or one).</summary>
+    public IReadOnlyList<Proposal> OpenFinishBatches(string documentTitle)
+    {
+        lock (_gate) return _items.Where(p => IsOpenFinishBatch(p, documentTitle)).ToList();
+    }
+
+    private (Proposal Added, IReadOnlyList<Proposal> Replaced) AddCore(string documentTitle, ProposalRequest request, string? finishStep)
     {
         Proposal proposal;
+        var replaced = new List<Proposal>();
         lock (_gate)
         {
             _counter++;
             var id = $"P{_counter:000}-{Guid.NewGuid().ToString("N")[..4]}";
-            proposal = new Proposal(id, documentTitle, request, _clock());
+            proposal = new Proposal(id, documentTitle, request, _clock(), finishStep);
+            if (finishStep is not null)
+            {
+                foreach (var old in _items.Where(p => IsOpenFinishBatch(p, documentTitle)))
+                {
+                    old.Status = ProposalStatus.Rejected;
+                    old.ResultMessage = $"Replaced by {id}: Finish Drafting planned this step again from the model as it is now. Nothing was changed.";
+                    old.ResolvedUtc = _clock();
+                    old.ResolvedBy = FinishDraftingUser;
+                    replaced.Add(old);
+                }
+            }
             _items.Add(proposal);
         }
         RaiseChanged();
-        return proposal;
+        return (proposal, replaced);
     }
+
+    private static bool IsOpenFinishBatch(Proposal p, string documentTitle) =>
+        p.FinishStep is not null && p.IsOpen && string.Equals(p.DocumentTitle, documentTitle, StringComparison.Ordinal);
 
     public IReadOnlyList<Proposal> List()
     {

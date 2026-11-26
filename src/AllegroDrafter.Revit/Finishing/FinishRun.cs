@@ -15,6 +15,7 @@ internal sealed class FinishRun
     private readonly object _gate = new();
     private bool _advancing;
     private bool _again;
+    private string? _project;
 
     public FinishRun(App app)
     {
@@ -70,7 +71,16 @@ internal sealed class FinishRun
     /// <summary>The designer answered a card. When every card on screen has an answer, the run moves on.</summary>
     public void Answer(string cardId, string answer)
     {
-        lock (_gate) State.Answers[cardId] = answer;
+        string? project;
+        FinishState state;
+        lock (_gate)
+        {
+            State.Answers[cardId] = answer;
+            project = _project;
+            state = State;
+        }
+        // Saved right away, so a crash or restart never asks this card again.
+        if (project is not null) _app.FinishAnswers.Save(project, state);
         Log("answer", $"{cardId} = {answer}");
         var allAnswered = Current is FinishQuestions q && q.Cards.All(c => State.Answered(c.Id));
         Raise();
@@ -134,8 +144,11 @@ internal sealed class FinishRun
         SetStatus("Reading the model...");
         try
         {
+            UseProject(await _app.Drafter.ActiveProjectTitleAsync());
             var (facts, report) = await _app.Drafter.RunAuditAsync();
-            var step = FinishPlanner.Next(facts, report, _app.Standards.Current, State);
+            FinishState state;
+            lock (_gate) state = State;
+            var step = FinishPlanner.Next(facts, report, _app.Standards.Current, state);
             lock (_gate) Current = step;
 
             switch (step)
@@ -143,13 +156,22 @@ internal sealed class FinishRun
                 case FinishBatch batch:
                 {
                     var request = batch.Request with { Title = $"Finish Drafting {batch.StepNumber}/{FinishPlanner.Steps.Count}: {batch.Request.Title}" };
-                    var outcome = await _app.Drafter.ProposeAsync(request, dropEmpty: true);
+                    var outcome = await _app.Drafter.ProposeAsync(request, dropEmpty: true, finishStep: batch.StepId);
                     if (outcome.Queued)
                     {
                         lock (_gate) CurrentProposalId = outcome.Proposal!.Id;
-                        SetStatus(batch.Request.Changes.Any(c => c.IsDestructive)
+                        var replaced = outcome.Replaced ?? Array.Empty<Proposal>();
+                        foreach (var old in replaced)
+                        {
+                            Log("replaced", $"{old.Id} ({old.FinishStep}) by {outcome.Proposal.Id}");
+                            try { _app.Audit.Write(AuditEntry.From(old, ProposalStore.FinishDraftingUser)); }
+                            catch { /* never let logging stop a run */ }
+                        }
+                        var ask = batch.Request.Changes.Any(c => c.IsDestructive)
                             ? "This batch deletes. Read the list below, then approve or reject."
-                            : "Check the batch below, then approve or reject. Rejecting skips this step.");
+                            : "Check the batch below, then approve or reject. Rejecting skips this step.";
+                        SetStatus(replaced.Count == 0 ? ask
+                            : $"{ask} It replaces {string.Join(", ", replaced.Select(r => r.Id))}, left open from before, which was planned against an older model.");
                         return;
                     }
                     // Refused (the model disagrees with the rule) or nothing left after pruning: note it and move on.
@@ -189,6 +211,29 @@ internal sealed class FinishRun
             }
             Raise();
         }
+    }
+
+    /// <summary>
+    /// Points the run at the project open in Revit. Card ids carry element ids, which only mean
+    /// something inside one model, so each project gets its own saved answers.
+    /// </summary>
+    private void UseProject(string title)
+    {
+        lock (_gate)
+        {
+            if (string.Equals(_project, title, StringComparison.Ordinal)) return;
+            _project = title;
+            // Skips belong to the project they were made in, so a different project starts with none.
+            State = _app.FinishAnswers.StateFor(title);
+        }
+    }
+
+    /// <summary>Answers for the open project, for the get_finish_plan preview.</summary>
+    public async Task<FinishState> StateForActiveProjectAsync()
+    {
+        var title = await _app.Drafter.ActiveProjectTitleAsync();
+        lock (_gate)
+            return string.Equals(_project, title, StringComparison.Ordinal) ? State : _app.FinishAnswers.StateFor(title);
     }
 
     private void SetStatus(string text)

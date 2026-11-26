@@ -56,6 +56,7 @@ internal sealed class FinishRunPanel : Border
         title.Children.Add(new TextBlock { Text = "Finish Drafting" + where, FontWeight = FontWeights.SemiBold, FontSize = 14, Foreground = Accent, TextWrapping = TextWrapping.Wrap });
         _body.Children.Add(title);
         _body.Children.Add(Text(_run.Status, top: 4));
+        if (_app.FinishAnswers.Warning is { } warning) _body.Children.Add(Text(warning, muted: true, size: 11, top: 4));
 
         if (_run.IsRunning && step is FinishQuestions q)
             foreach (var card in q.Cards.Where(c => !_run.State.Answered(c.Id))) _body.Children.Add(Card(card));

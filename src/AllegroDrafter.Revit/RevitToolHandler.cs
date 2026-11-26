@@ -68,7 +68,7 @@ internal sealed class RevitToolHandler : IToolHandler
                 case ToolNames.GetFinishPlan:
                 {
                     var (facts, report) = await _drafter.RunAuditAsync();
-                    var state = App.Instance?.Finish?.State ?? new Core.Finishing.FinishState();
+                    var state = App.Instance?.Finish is { } finish ? await finish.StateForActiveProjectAsync() : new Core.Finishing.FinishState();
                     var step = Core.Finishing.FinishPlanner.Next(facts, report, _standards.Current, state);
                     return ToolCallResult.Ok(step switch
                     {

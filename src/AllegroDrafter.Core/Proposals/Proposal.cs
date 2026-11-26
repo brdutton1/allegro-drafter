@@ -18,7 +18,7 @@ public enum ProposalStatus
 
 public sealed class Proposal
 {
-    internal Proposal(string id, string documentTitle, ProposalRequest request, DateTime createdUtc)
+    internal Proposal(string id, string documentTitle, ProposalRequest request, DateTime createdUtc, string? finishStep = null)
     {
         Id = id;
         DocumentTitle = documentTitle;
@@ -26,6 +26,7 @@ public sealed class Proposal
         Rationale = request.Rationale;
         Changes = request.Changes.ToList();
         CreatedUtc = createdUtc;
+        FinishStep = finishStep;
     }
 
     /// <summary>Rebuilds a proposal saved to disk by <see cref="ProposalStore"/>.</summary>
@@ -43,11 +44,12 @@ public sealed class Proposal
         ResolvedUtc = r.ResolvedUtc;
         ResolvedBy = r.ResolvedBy;
         Attempts = r.Attempts;
+        FinishStep = r.FinishStep;
     }
 
     internal ProposalRecord ToRecord() => new(
         Id, DocumentTitle, Title, Rationale, Changes.ToList(), CreatedUtc, Status,
-        ResultMessage, CreatedElementIds.ToList(), ResolvedUtc, ResolvedBy, Attempts);
+        ResultMessage, CreatedElementIds.ToList(), ResolvedUtc, ResolvedBy, Attempts, FinishStep);
 
     public string Id { get; }
     public string DocumentTitle { get; }
@@ -55,6 +57,12 @@ public sealed class Proposal
     public string Rationale { get; }
     public IReadOnlyList<ProposalChange> Changes { get; }
     public DateTime CreatedUtc { get; }
+
+    /// <summary>The Finish Drafting step that queued this batch ("type-marks"), or null for anything else.</summary>
+    public string? FinishStep { get; }
+
+    /// <summary>Waiting on the designer, or failed and still retryable.</summary>
+    public bool IsOpen => Status is ProposalStatus.Pending or ProposalStatus.Failed;
 
     public ProposalStatus Status { get; internal set; } = ProposalStatus.Pending;
     public string? ResultMessage { get; internal set; }
@@ -84,4 +92,5 @@ public sealed record ProposalRecord(
     List<long> CreatedElementIds,
     DateTime? ResolvedUtc,
     string? ResolvedBy,
-    int Attempts);
+    int Attempts,
+    string? FinishStep = null);

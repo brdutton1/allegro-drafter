@@ -90,8 +90,11 @@ internal sealed class ApprovalPane : UserControl
         var hidden = 0;
         if (_app.Finish.IsRunning)
         {
-            hidden = proposals.Count(p => p.Status == ProposalStatus.Pending && p.Id != current);
-            proposals = proposals.Where(p => p.Id == current || p.Status != ProposalStatus.Pending).ToList();
+            // Hidden: anything else waiting, and any leftover Finish Drafting batch (even a failed
+            // one with Retry), so the only thing the designer can approve is the run's batch.
+            bool Hide(Proposal p) => p.Id != current && (p.Status == ProposalStatus.Pending || (p.FinishStep is not null && p.IsOpen));
+            hidden = proposals.Count(Hide);
+            proposals = proposals.Where(p => !Hide(p)).ToList();
         }
         var offset = _scroll.VerticalOffset;
         _armTimer.Stop();

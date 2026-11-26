@@ -27,6 +27,9 @@ public sealed class AppPaths
     /// <summary>Proposals (pending and recent), saved after every change so a crash loses nothing.</summary>
     public string ProposalsFile => Path.Combine(Root, "proposals.json");
 
+    /// <summary>Finish Drafting card answers, per project, so a restart doesn't ask again.</summary>
+    public string FinishAnswersFile => Path.Combine(Root, "finish-answers.json");
+
     /// <summary>One JSON-lines file per month recording every approve/reject.</summary>
     public string AuditDir => Path.Combine(Root, "audit");
 

@@ -8,7 +8,7 @@ using Autodesk.Revit.UI;
 namespace AllegroDrafter.Revit;
 
 /// <summary>What happened when something asked to queue a proposal.</summary>
-internal sealed record ProposeOutcome(Proposal? Proposal, IReadOnlyList<string> Errors)
+internal sealed record ProposeOutcome(Proposal? Proposal, IReadOnlyList<string> Errors, IReadOnlyList<Proposal>? Replaced = null)
 {
     public const string RefusedHeading = "Proposal refused before reaching the designer. Fix these and propose again:";
     public bool Queued => Proposal is not null;
@@ -53,8 +53,10 @@ internal sealed class DrafterService
     /// Validates against standards and the live model, then queues it for the designer.
     /// dropEmpty (Finish Drafting): tag and dimension changes with nothing to place are dropped
     /// instead of refusing the batch. A batch left empty comes back unqueued with no errors.
+    /// finishStep (Finish Drafting): queues it as the project's one open Finish Drafting batch;
+    /// any older open one is rejected and returned in Replaced.
     /// </summary>
-    public async Task<ProposeOutcome> ProposeAsync(ProposalRequest request, bool dropEmpty = false)
+    public async Task<ProposeOutcome> ProposeAsync(ProposalRequest request, bool dropEmpty = false, string? finishStep = null)
     {
         var standardsErrors = ProposalValidator.Validate(request, _standards.Current);
         if (standardsErrors.Count > 0) return new ProposeOutcome(null, standardsErrors);
@@ -75,10 +77,16 @@ internal sealed class DrafterService
         if (modelErrors.Count > 0) return new ProposeOutcome(null, modelErrors);
         if (labeled.Count == 0) return new ProposeOutcome(null, Array.Empty<string>());
 
-        var proposal = _proposals.Add(documentTitle, request with { Changes = labeled });
+        var queued = request with { Changes = labeled };
+        var (proposal, replaced) = finishStep is null
+            ? (_proposals.Add(documentTitle, queued), (IReadOnlyList<Proposal>)Array.Empty<Proposal>())
+            : _proposals.AddFinishBatch(documentTitle, queued, finishStep);
         _onNewProposal();
-        return new ProposeOutcome(proposal, Array.Empty<string>());
+        return new ProposeOutcome(proposal, Array.Empty<string>(), replaced);
     }
+
+    /// <summary>Title of the project open in Revit. Throws NoProjectException if there isn't one.</summary>
+    public Task<string> ActiveProjectTitleAsync() => _dispatcher.InvokeAsync(app => RequireProject(app).Title);
 
     public static Document RequireProject(UIApplication app)
     {

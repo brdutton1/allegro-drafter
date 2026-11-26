@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using AllegroDrafter.Core;
 using AllegroDrafter.Core.Audit;
+using AllegroDrafter.Core.Finishing;
 using AllegroDrafter.Core.Mcp;
 using AllegroDrafter.Core.Proposals;
 using AllegroDrafter.Core.Standards;
@@ -25,6 +26,7 @@ public sealed class App : IExternalApplication
     internal RevitDispatcher Dispatcher { get; private set; } = null!;
     internal DrafterService Drafter { get; private set; } = null!;
     internal Finishing.FinishRun Finish { get; private set; } = null!;
+    internal FinishAnswersStore FinishAnswers { get; private set; } = null!;
     internal McpConfig? Config { get; private set; }
     internal McpHttpServer? Server { get; private set; }
     internal string? ServerError { get; private set; }
@@ -39,6 +41,7 @@ public sealed class App : IExternalApplication
         Audit = new AuditLog(Paths);
         Dispatcher = new RevitDispatcher();
         Drafter = new DrafterService(Dispatcher, Proposals, Standards, ShowPaneSoon);
+        FinishAnswers = new FinishAnswersStore(Paths.FinishAnswersFile);
         Finish = new Finishing.FinishRun(this);
 
         var pane = new ApprovalPane(this);
