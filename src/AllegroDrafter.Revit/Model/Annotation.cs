@@ -252,7 +252,13 @@ internal static class Dimensioning
     public sealed record Extracted(List<PlanWall> Walls, List<PlanOpening> Openings, Dictionary<string, Reference> References, List<string> Notes, double Z)
     {
         public List<PlanInteriorWall> Interior { get; } = new();
+
+        /// <summary>The model side at the top of the view on the sheet (north unless the view is rotated).</summary>
+        public Side ViewTop { get; init; } = Side.North;
     }
+
+    private static Side SideOf(XYZ v) =>
+        Math.Abs(v.X) >= Math.Abs(v.Y) ? (v.X >= 0 ? Side.East : Side.West) : (v.Y >= 0 ? Side.North : Side.South);
 
     private static bool IsOutside(WallFunction f) => f is WallFunction.Exterior or WallFunction.Foundation;
 
@@ -347,7 +353,7 @@ internal static class Dimensioning
         if (curtain > 0) notes.Add($"{curtain} curtain/stacked exterior wall(s) skipped.");
         if (noFace > 0) notes.Add($"{noFace} wall(s) had no usable exterior face and were skipped.");
         if (noCenter > 0) notes.Add($"{noCenter} door/window famil(ies) have no Center (Left/Right) reference and weren't located. Fix the family.");
-        var data = new Extracted(walls, openings, references, notes, level.Elevation);
+        var data = new Extracted(walls, openings, references, notes, level.Elevation) { ViewTop = SideOf(view.UpDirection) };
         ExtractInterior(doc, view, data);
         return data;
     }
@@ -391,7 +397,10 @@ internal static class Dimensioning
     public static DimensionPlan Plan(Extracted data, DimensionViewChange change)
     {
         var basis = PlanDimensioning.ParseBasis(change.InteriorBasis);
-        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetFeet, change.StepFeet, basis);
+        var sides = PlanDimensioning.ResolveSides(change.Sides, data.ViewTop);
+        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetFeet, change.StepFeet, basis, sides);
+        if (sides is not null && change.Sides!.Any(s => s is "top" or "bottom" or "left" or "right") && data.ViewTop != Side.North)
+            plan = plan with { Notes = plan.Notes.Append($"This view is rotated: the top of the sheet is model {data.ViewTop.ToString().ToLowerInvariant()}.").ToList() };
         if (basis == InteriorBasis.Center && change.Strategies.Contains(PlanDimensioning.Interior))
         {
             // Centerline references need a check in Revit first (plan: spike 1). Until then the strings

@@ -271,6 +271,10 @@ public static class ProposalRequestParser
             var basis = Args.OptionalString(item, "interiorBasis", path)?.ToLowerInvariant();
             if (basis is not null && !PlanDimensioning.Bases.Contains(basis))
                 throw new ToolArgumentException($"{path}.interiorBasis must be one of: {string.Join(", ", PlanDimensioning.Bases)}.");
+            var sides = Args.OptionalStringArray(item, "sides", path)?.Select(s => s.Trim().ToLowerInvariant()).Distinct().ToList();
+            if (sides is { Count: 0 }) throw new ToolArgumentException($"{path}.sides can't be empty; leave it out for every side.");
+            var badSides = sides?.Where(s => !PlanDimensioning.SideNames.Contains(s)).ToList() ?? new List<string>();
+            if (badSides.Count > 0) throw new ToolArgumentException($"{path}.sides: unknown '{string.Join("', '", badSides)}'. Use {string.Join(", ", PlanDimensioning.SideNames)}.");
             changes.Add(new DimensionViewChange(
                 Args.RequiredString(item, "viewName", path),
                 strategies,
@@ -278,7 +282,8 @@ public static class ProposalRequestParser
                 Args.OptionalString(item, "viewType", path),
                 offset, step,
                 Args.OptionalBool(item, "allowExisting", path),
-                InteriorBasis: basis));
+                InteriorBasis: basis,
+                Sides: sides));
         }
         return changes;
     }

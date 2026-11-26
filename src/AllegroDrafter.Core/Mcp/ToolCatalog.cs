@@ -200,6 +200,7 @@ public static class ToolCatalog
                     {{ViewTypeProp}},
                     "strategies": { "type": "array", "items": { "type": "string", "enum": ["openings","walls","overall","interior"] }, "description": "Default all four." },
                     "interiorBasis": { "type": "string", "enum": ["face","center"], "description": "Interior walls measured to one consistent face (west/south, default) or to centerlines." },
+                    "sides": { "type": "array", "items": { "type": "string", "enum": ["top","bottom","left","right","north","south","east","west"] }, "description": "Only these exterior sides. top/bottom/left/right are as the view sits on the sheet; north/south/east/west are model directions. Leave out for every side. Interior strings are drawn only if 'interior' is in strategies. Use with allowExisting to fill in one side the designer cleared." },
                     "dimensionType": { "type": "string", "description": "Exact name from get_standards dimensionTypes, e.g. 'Linear: Arch 3/32\"'. Omit for the project default." },
                     "offsetFeet": { "type": "number", "description": "Model feet from the building face to the first string. Default 4." },
                     "stepFeet": { "type": "number", "description": "Model feet between tiers. Default 2." },

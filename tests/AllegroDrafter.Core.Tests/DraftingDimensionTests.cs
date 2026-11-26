@@ -209,6 +209,37 @@ public class DraftingDimensionTests
         Assert.Equal(InteriorBasis.Face, PlanDimensioning.ParseBasis(null));
     }
 
+    [Fact]
+    public void One_side_only_leaves_the_others_alone_and_keeps_its_spacing()
+    {
+        var windows = new[] { new PlanOpening("w", "N1", 25) };
+        var all = PlanDimensioning.Plan(LowNotchL(), windows, Array.Empty<PlanInteriorWall>(), DimensionPlanner.Strategies.ToList());
+        var north = PlanDimensioning.Plan(LowNotchL(), windows, Array.Empty<PlanInteriorWall>(), DimensionPlanner.Strategies.ToList(), onlySides: new[] { Side.North });
+
+        Assert.All(north.Strings, s => Assert.Equal(Side.North, s.Side));
+        Assert.Equal(all.Strings.Where(s => s.Side == Side.North).Select(s => (s.Strategy, s.LineCoord)), north.Strings.Select(s => (s.Strategy, s.LineCoord)));
+        Assert.DoesNotContain(north.Notes, n => n.StartsWith("South:") || n.StartsWith("East:") || n.StartsWith("West:"));
+        Assert.DoesNotContain(north.Notes, n => n.StartsWith("Check:"));
+    }
+
+    [Theory]
+    [InlineData(Side.North, "top", Side.North)]
+    [InlineData(Side.North, "left", Side.West)]
+    [InlineData(Side.East, "top", Side.East)]      // view rotated: model east at the top of the sheet
+    [InlineData(Side.East, "right", Side.South)]
+    [InlineData(Side.East, "bottom", Side.West)]
+    [InlineData(Side.East, "north", Side.North)]   // model directions ignore the rotation
+    public void Sheet_sides_follow_the_view_rotation(Side viewTop, string name, Side expected) =>
+        Assert.Equal(new[] { expected }, PlanDimensioning.ResolveSides(new[] { name }, viewTop));
+
+    [Fact]
+    public void No_sides_means_every_side()
+    {
+        Assert.Null(PlanDimensioning.ResolveSides(null, Side.North));
+        Assert.Null(PlanDimensioning.ResolveSides(Array.Empty<string>(), Side.North));
+        Assert.Throws<ArgumentException>(() => PlanDimensioning.ResolveSides(new[] { "up" }, Side.North));
+    }
+
     // ------------------------------------------------------------- closure
 
     [Fact]

@@ -196,20 +196,23 @@ public sealed record DimensionViewChange(
     double StepFeet = 2.0,
     bool AllowExisting = false,
     int? ExpectedStrings = null,
-    string? InteriorBasis = null) : ProposalChange
+    string? InteriorBasis = null,
+    IReadOnlyList<string>? Sides = null) : ProposalChange
 {
     public override string Describe()
     {
         var count = ExpectedStrings is null ? "" : $"{ExpectedStrings} ";
         var what = Strategies.All(s => s == "interior") ? "interior" : Strategies.Contains("interior") ? "exterior and interior" : "exterior";
         var basis = Strategies.Contains("interior") ? $", interior walls to {InteriorBasis ?? "face"}" : "";
-        return $"Add {count}{what} dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{basis}{(DimensionType is null ? "" : $" ({DimensionType})")}";
+        var sides = Sides is { Count: > 0 } ? $", {string.Join("/", Sides)} side only" : "";
+        return $"Add {count}{what} dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{sides}{basis}{(DimensionType is null ? "" : $" ({DimensionType})")}";
     }
 
     public bool Equals(DimensionViewChange? other) =>
         other is not null && ViewName == other.ViewName && ViewType == other.ViewType && DimensionType == other.DimensionType
         && OffsetFeet == other.OffsetFeet && StepFeet == other.StepFeet && AllowExisting == other.AllowExisting
-        && ExpectedStrings == other.ExpectedStrings && InteriorBasis == other.InteriorBasis && Strategies.SequenceEqual(other.Strategies);
+        && ExpectedStrings == other.ExpectedStrings && InteriorBasis == other.InteriorBasis && Strategies.SequenceEqual(other.Strategies)
+        && (Sides ?? Array.Empty<string>()).SequenceEqual(other.Sides ?? Array.Empty<string>());
 
     public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
 }

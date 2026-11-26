@@ -115,7 +115,20 @@ public class AnnotationParsingTests
         Assert.NotEqual(inner, inner with { InteriorBasis = "face" });
     }
 
+    [Fact]
+    public void Top_side_only_with_existing_dims_parses()
+    {
+        var d = Assert.IsType<DimensionViewChange>(Assert.Single(Parse(ToolNames.ProposeDimensions,
+            """{ "title": "t", "views": [ { "viewName": "MAIN FLOOR PLAN", "strategies": ["openings","walls","overall"], "sides": ["Top"], "allowExisting": true } ] }""").Changes));
+        Assert.Equal(new[] { "top" }, d.Sides);
+        Assert.True(d.AllowExisting);
+        Assert.Contains("top side only", d.Describe());
+        Assert.NotEqual(d, d with { Sides = new[] { "bottom" } });
+    }
+
     [Theory]
+    [InlineData("""{ "viewName": "L1", "sides": ["up"] }""", "unknown 'up'")]
+    [InlineData("""{ "viewName": "L1", "sides": [] }""", "sides can't be empty")]
     [InlineData("""{ "viewName": "L1", "interiorBasis": "stud" }""", "interiorBasis must be one of")]
     [InlineData("""{ "viewName": "L1", "strategies": ["radial"] }""", "unknown 'radial'")]
     [InlineData("""{ "viewName": "L1", "strategies": [] }""", "can't be empty")]
