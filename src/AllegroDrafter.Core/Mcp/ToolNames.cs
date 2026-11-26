@@ -18,7 +18,6 @@ public static class ToolNames
     public const string ProposeSheets = "propose_sheets";
     public const string ProposeSheetSet = "propose_sheet_set";
     public const string ProposePlaceViews = "propose_place_views";
-    public const string ProposeViewTemplates = "propose_view_templates";
     public const string ProposeSchedules = "propose_schedules";
     public const string ProposeParameterValues = "propose_parameter_values";
     public const string ProposeTags = "propose_tags";
@@ -43,7 +42,7 @@ public static class ToolNames
 
     public static readonly IReadOnlySet<string> ProposalTools = new HashSet<string>
     {
-        ProposeSheets, ProposeSheetSet, ProposePlaceViews, ProposeViewTemplates,
+        ProposeSheets, ProposeSheetSet, ProposePlaceViews,
         ProposeSchedules, ProposeParameterValues,
         ProposeTags, ProposeCallouts, ProposeNotes, ProposeDimensions, ProposeScheduleFields,
         ProposeTypeMarks, ProposeParameters, ProposeScheduleSort, ProposeRoomCleanup, ProposeWallFunction,

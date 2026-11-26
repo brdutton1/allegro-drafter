@@ -277,37 +277,18 @@ public class FinishPlannerTests
     // ---------------------------------------------------------- view templates
 
     [Fact]
-    public void View_templates_ask_once_per_kind_of_view_then_apply()
+    public void Views_without_templates_are_left_alone()
     {
+        // Office rule (2026-11-26): view templates are the designer's. The run never asks about or applies them.
         var facts = Clean();
         facts.PlacedViews.Add(new ViewFact("MAIN FLOOR PLAN", "FloorPlan", 48, null, new[] { "A1" }));
-        facts.PlacedViews.Add(new ViewFact("FOUNDATION PLAN", "FloorPlan", 48, null, new[] { "F1" }));
-        facts.PlacedViews.Add(new ViewFact("FRONT ELEVATION", "Elevation", 48, null, new[] { "A2" }));
-        facts.PlacedViews.Add(new ViewFact("REAR ELEVATION", "Elevation", 48, null, new[] { "A3" }));
-        var q = Assert.IsType<FinishQuestions>(Plan(facts));
-        Assert.Equal(3, q.Cards.Count);
-        var foundation = q.Cards.Single(c => c.Id == "template:FloorPlan:FOUNDATION");
-        Assert.Equal("ADC - Foundation Plan", foundation.Recommended);
-        Assert.Equal("ADC - Elevations", q.Cards.Single(c => c.Id == "template:Elevation:").Recommended);
-
-        var state = new FinishState();
-        foreach (var c in q.Cards) state.Answers[c.Id] = c.Recommended!;
-        var b = AssertBatch(Plan(facts, state), "view-templates");
-        Assert.Equal(4, b.Request.Changes.Count);
-        Assert.Contains(new ApplyViewTemplateChange("FOUNDATION PLAN", "ADC - Foundation Plan", "FloorPlan"), b.Request.Changes);
-    }
-
-    [Fact]
-    public void Saved_template_rules_skip_the_question()
-    {
-        var facts = Clean();
         facts.PlacedViews.Add(new ViewFact("FRONT ELEVATION", "Elevation", 48, null, new[] { "A2" }));
         var profile = Profile();
-        profile.Manual.Audit.ViewTemplateRules.Add(new ViewTemplateRule("Elevation", null, "ADC - Elevations"));
-        var b = AssertBatch(Plan(facts, profile: profile), "view-templates");
-        Assert.Equal(new ApplyViewTemplateChange("FRONT ELEVATION", "ADC - Elevations", "Elevation"), b.Request.Changes.Single());
+        profile.Manual.Audit.ViewTemplateRules.Add(new ViewTemplateRule("Elevation", null, "ADC - Elevations")); // old setting: ignored
+        var done = Assert.IsType<FinishDone>(Plan(facts, profile: profile));
+        Assert.DoesNotContain(done.Remaining, r => r.Contains("view template", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(FinishPlanner.Steps, s => s.Id.Contains("template"));
     }
-
     // ------------------------------------------------------------------ tags
 
     [Fact]

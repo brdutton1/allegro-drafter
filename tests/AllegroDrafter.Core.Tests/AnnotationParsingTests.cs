@@ -34,15 +34,22 @@ public class AnnotationParsingTests
     {
         var changes = Parse(ToolNames.ProposeCallouts, """
             { "title": "t", "callouts": [ { "parentView": "Level 1", "name": "ENLARGED KITCHEN", "viewFamilyType": "Detail View",
-              "aroundRoomNumber": "104", "scale": 24, "templateName": "A - Enlarged Plan", "sheetNumber": "A5.1" } ] }
+              "aroundRoomNumber": "104", "scale": 24, "sheetNumber": "A5.1" } ] }
             """).Changes;
         var callout = Assert.IsType<CalloutChange>(changes[0]);
         Assert.False(callout.IsReference);
+        Assert.Null(callout.TemplateName);
         Assert.Equal(("104", 1.0, 24), (callout.Area.RoomNumber, callout.Area.MarginFeet, callout.Scale));
         var place = Assert.IsType<PlaceViewChange>(changes[1]);
         Assert.Equal(("A5.1", "ENLARGED KITCHEN"), (place.SheetNumber, place.ViewName));
         Assert.Contains("around room 104", callout.Describe());
     }
+
+    [Fact]
+    public void Callout_with_a_view_template_is_refused() =>
+        Refused(ToolNames.ProposeCallouts, """
+            { "title": "t", "callouts": [ { "parentView": "Level 1", "name": "E", "viewFamilyType": "Detail View", "aroundRoomNumber": "104", "templateName": "A - Enlarged Plan" } ] }
+            """, "doesn't apply view templates");
 
     [Fact]
     public void Reference_callout_parses()
@@ -62,7 +69,7 @@ public class AnnotationParsingTests
     [InlineData("""{ "parentView": "L1", "referenceView": "D", "aroundRoomNumber": "1", "aroundElementIds": [1] }""", "exactly one of")]
     [InlineData("""{ "parentView": "L1", "referenceView": "D", "minX": 0, "minY": 0, "maxX": 0, "maxY": 5 }""", "min < max")]
     [InlineData("""{ "parentView": "L1", "referenceView": "D", "minX": 0, "minY": 0 }""", "must all be given")]
-    [InlineData("""{ "parentView": "L1", "referenceView": "D", "aroundRoomNumber": "1", "scale": 24 }""", "only apply to new detail")]
+    [InlineData("""{ "parentView": "L1", "referenceView": "D", "aroundRoomNumber": "1", "scale": 24 }""", "only applies to new detail")]
     [InlineData("""{ "parentView": "L1", "referenceView": "D", "aroundRoomNumber": "1", "sheetNumber": "A1" }""", "no new view to place")]
     [InlineData("""{ "parentView": "L1", "name": "X", "viewFamilyType": "V", "aroundRoomNumber": "1", "scale": 2.5 }""", "whole number")]
     [InlineData("""{ "parentView": "L1", "name": "X", "viewFamilyType": "V", "aroundRoomNumber": "1", "marginFeet": -1 }""", "can't be negative")]
@@ -122,7 +129,7 @@ public class AnnotationValidationTests
         Assert.Empty(V(
             new TagViewChange("Level 1", "doors", "Door Tag: Standard"),
             new TagViewChange("Level 1", "windows"),
-            Callout("ENLARGED KITCHEN", template: "A - Floor Plan 1/4\""),
+            Callout("ENLARGED KITCHEN"),
             new TextNoteChange("Level 1", "NOTE", "3/32\" Arial", 0, 0),
             new DimensionViewChange("Level 1", new[] { "overall" }, "Linear: Arch 3/32\"")));
     }
@@ -132,7 +139,7 @@ public class AnnotationValidationTests
     {
         Assert.Contains("Tag type", Assert.Single(V(new TagViewChange("Level 1", "doors", "Door Tag: Fancy"))));
         Assert.Contains("View type", Assert.Single(V(Callout("X", vft: "Enlarged"))));
-        Assert.Contains("View template", Assert.Single(V(Callout("X", template: "Nope"))));
+        Assert.Contains("doesn't apply view templates", Assert.Single(V(Callout("X", template: "Nope"))));
         Assert.Contains("Text type", Assert.Single(V(new TextNoteChange("Level 1", "N", "Comic Sans", 0, 0))));
         Assert.Contains("Dimension type", Assert.Single(V(new DimensionViewChange("Level 1", new[] { "overall" }, "Linear: Wild"))));
     }

@@ -27,7 +27,8 @@ public static class ToolCatalog
 {
     public const string ServerInstructions = """
         You are drafting inside a live Revit project for Allegro Design Co. Rules:
-        1. Call get_standards before proposing anything. Use title block, view template and type names EXACTLY as listed there. Never invent names. If what you need is missing, say so and stop.
+        0. Scope (office rule): drafting, tagging and checking schedules, plus the model-data fixes below. Never touch the office template. Never apply, clear or suggest view templates; leave view templates to the designer.
+        1. Call get_standards before proposing anything. Use title block and type names EXACTLY as listed there. Never invent names. If what you need is missing, say so and stop.
         2. Read the model (get_project_info, list_levels, list_views, list_sheets) before proposing, so sheet numbers don't collide and views exist.
         3. You never change the model directly. propose_* tools queue a proposal that the designer approves or rejects in Revit. Tell the designer what you proposed and that it is waiting in the Allegro Drafter pane.
         4. Keep each proposal to one reviewable batch (max 50 changes), grouped logically (e.g. "Architectural floor plan sheets").
@@ -46,8 +47,8 @@ public static class ToolCatalog
             c. propose_schedule_fields then propose_schedule_sort: required columns, sorted by Type Mark (doors: then Door Swing), itemized off.
             d. propose_parameter_values: Tempered = Yes on glass doors the tempered check failed. Window tempered/egress warnings and door swings need the designer's call; list them and ask.
             e. propose_room_cleanup with allUnplaced, only after telling the designer how many rooms it deletes.
-            f. propose_view_templates and propose_tags for what's left.
-           Template problems (text heights, wall legend) are office decisions. Report them, don't patch them per project.
+            f. propose_tags and propose_dimensions for what's left.
+           Template problems (text heights, wall legend, view templates) are office decisions. Report them, don't patch them per project.
         """;
 
     private const string TitleRationale = """
@@ -67,7 +68,7 @@ public static class ToolCatalog
     public static readonly IReadOnlyList<ToolDefinition> All = new[]
     {
         new ToolDefinition(ToolNames.GetStandards, "Get office standards",
-            "Returns the office standards profile: the ONLY title blocks, view templates, schedules, details, tags and types you may use, plus office rules and typical sheet indexes per project type. Call this first.",
+            "Returns the office standards profile: the ONLY title blocks, schedules, details, tags and types you may use (view templates are listed for reference only; never apply them), plus office rules and typical sheet indexes per project type. Call this first.",
             """
             { "type": "object", "properties": {
                 "section": { "type": "string", "enum": ["all","summary","titleBlocks","viewTemplates","viewFamilyTypes","tagTypes","textNoteTypes","dimensionTypes","schedules","scheduleCategories","draftingViews","legends","sheets","modelTypes","manual"],
@@ -147,15 +148,13 @@ public static class ToolCatalog
             """, ReadOnly: true),
 
         new ToolDefinition(ToolNames.ProposeSchedules, "Propose schedules",
-            "Proposes creating schedules, by copying an office schedule (preferred) or by category + schedule view template, and optionally placing each on a sheet. Nothing changes until the designer approves.",
+            "Proposes creating schedules by copying an office schedule, and optionally placing each on a sheet. Never with a view template (office rule). Nothing changes until the designer approves.",
             $$"""
             { "type": "object", "required": ["title","schedules"], "properties": {
                 {{TitleRationale}},
-                "schedules": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["name"], "properties": {
+                "schedules": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["name","sourceSchedule"], "properties": {
                     "name": { "type": "string", "description": "New schedule name. Must not already exist." },
                     "sourceSchedule": { "type": "string", "description": "Office schedule to copy, exactly as in get_standards schedules." },
-                    "category": { "type": "string", "enum": ["doors","windows","rooms"], "description": "Use with templateName instead of sourceSchedule. Room finish schedules are 'rooms'." },
-                    "templateName": { "type": "string", "description": "Schedule view template from get_standards (viewType Schedule)." },
                     "sheetNumber": { "type": "string", "description": "Optional existing sheet to place it on." },
                     {{PositionProps}} }, "additionalProperties": false } } },
               "additionalProperties": false }
@@ -209,7 +208,7 @@ public static class ToolCatalog
             """, ReadOnly: false),
 
         new ToolDefinition(ToolNames.ProposeCallouts, "Propose callouts",
-            "Proposes callouts in plan views. Detail callout: a new enlarged view (name + viewFamilyType), optional template, scale and sheet. Reference callout: points at an existing view such as a standard detail (referenceView). Place it around a room, around elements, or a plan rectangle.",
+            "Proposes callouts in plan views. Detail callout: a new enlarged view (name + viewFamilyType), optional scale and sheet; no view template (office rule). Reference callout: points at an existing view such as a standard detail (referenceView). Place it around a room, around elements, or a plan rectangle.",
             $$"""
             { "type": "object", "required": ["title","callouts"], "properties": {
                 {{TitleRationale}},
@@ -223,7 +222,6 @@ public static class ToolCatalog
                     "aroundElementIds": { "type": "array", "items": { "type": "integer" } },
                     "minX": { "type": "number" }, "minY": { "type": "number" }, "maxX": { "type": "number" }, "maxY": { "type": "number" },
                     "marginFeet": { "type": "number", "description": "Space around the room/elements. Default 1." },
-                    "templateName": { "type": "string" },
                     "scale": { "type": "integer", "description": "e.g. 24 for 1/2\" = 1'-0\"." },
                     "sheetNumber": { "type": "string", "description": "Optional sheet to place the new callout view on." },
                     {{PositionProps}} }, "additionalProperties": false } } },
@@ -366,19 +364,6 @@ public static class ToolCatalog
                     "viewName": { "type": "string" },
                     {{ViewTypeProp}},
                     {{PositionProps}} }, "additionalProperties": false } } },
-              "additionalProperties": false }
-            """, ReadOnly: false),
-
-        new ToolDefinition(ToolNames.ProposeViewTemplates, "Propose view templates",
-            "Proposes assigning office view templates to views. The template must fit the view type.",
-            $$"""
-            { "type": "object", "required": ["title","assignments"], "properties": {
-                {{TitleRationale}},
-                "assignments": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["viewName","templateName"], "properties": {
-                    "viewName": { "type": "string" },
-                    {{ViewTypeProp}},
-                    "templateName": { "type": "string", "description": "Exact view template name from get_standards." } },
-                  "additionalProperties": false } } },
               "additionalProperties": false }
             """, ReadOnly: false),
 

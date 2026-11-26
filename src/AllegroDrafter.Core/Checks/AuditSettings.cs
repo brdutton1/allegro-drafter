@@ -108,11 +108,14 @@ public sealed class AuditSettings
     /// <summary>The sheet list placed on the cover as the sheet index.</summary>
     public string SheetIndexSchedule { get; set; } = "DRAWING INDEX";
 
-    /// <summary>
-    /// Office template per kind of view, so Finish Drafting doesn't ask. NameContains is one of
-    /// FOUNDATION, FRAMING, SITE, ROOF, CEILING, STRUCTURAL, ELECTRICAL, or empty for the rest.
-    /// </summary>
+    /// <summary>Kept so older standards files still load. Unused: the drafter doesn't apply view templates.</summary>
     public List<ViewTemplateRule> ViewTemplateRules { get; set; } = new();
+
+    /// <summary>
+    /// Checks the audit skips unless asked for by name. view-templates is off by default: view
+    /// templates are the designer's call (office rule, 2026-11-26), so missing ones aren't a failure.
+    /// </summary>
+    public List<string> DisabledChecks { get; set; } = new() { "view-templates" };
 
     // ---- Egress (IRC R310) ----
 

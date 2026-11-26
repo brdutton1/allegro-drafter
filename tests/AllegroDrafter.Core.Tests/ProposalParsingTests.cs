@@ -71,13 +71,14 @@ public class ProposalParsingTests
     }
 
     [Fact]
-    public void Templates_parse()
+    public void View_template_tool_is_gone()
     {
-        var args = Obj("""{ "title": "t", "assignments": [ { "viewName": "Level 1", "viewType": "FloorPlan", "templateName": "A - Floor Plan 1/4\"" } ] }""");
-        var request = ProposalRequestParser.Parse(ToolNames.ProposeViewTemplates, args);
-        var change = Assert.IsType<ApplyViewTemplateChange>(Assert.Single(request.Changes));
-        Assert.Equal("A - Floor Plan 1/4\"", change.TemplateName);
-        Assert.Contains("Apply view template", change.Describe());
+        // Office rule (2026-11-26): the drafter never applies view templates.
+        var args = Obj("""{ "title": "t", "assignments": [ { "viewName": "Level 1", "templateName": "A - Floor Plan 1/4\"" } ] }""");
+        Assert.Throws<ToolArgumentException>(() => ProposalRequestParser.Parse("propose_view_templates", args));
+        Assert.DoesNotContain(ToolCatalog.All, t => t.Name.Contains("template", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("Never apply, clear or suggest view templates", ToolCatalog.ServerInstructions);
+        Assert.DoesNotContain("propose_view_templates", ToolCatalog.ServerInstructions);
     }
 
     [Fact]
@@ -104,8 +105,7 @@ public class ProposalValidatorTests
     {
         var errors = ProposalValidator.Validate(Request(
             new CreateSheetChange("A1.0", "PLAN", "Allegro 24x36: Standard"),
-            new PlaceViewChange("A1.0", "Level 1"),
-            new ApplyViewTemplateChange("Level 1", "A - Floor Plan 1/4\"")), Profile());
+            new PlaceViewChange("A1.0", "Level 1")), Profile());
         Assert.Empty(errors);
     }
 
@@ -133,10 +133,13 @@ public class ProposalValidatorTests
     }
 
     [Fact]
-    public void Invented_template_is_rejected()
+    public void Any_view_template_is_refused_even_an_office_one()
     {
-        var errors = ProposalValidator.Validate(Request(new ApplyViewTemplateChange("L1", "Floor Plan - Fancy")), Profile());
-        Assert.Contains("View template 'Floor Plan - Fancy'", Assert.Single(errors));
+        // Even an exact office template name: the designer sets templates, never the drafter.
+        var errors = ProposalValidator.Validate(Request(new ApplyViewTemplateChange("Level 1", "A - Floor Plan 1/4\"")), Profile());
+        Assert.Equal("Change 1: " + ProposalValidator.NoTemplates, Assert.Single(errors));
+        var callout = ProposalValidator.Validate(Request(new CalloutChange("Level 1", new CalloutArea(RoomNumber: "104"), Name: "ENLARGED", ViewFamilyType: "Detail View", TemplateName: "A - Floor Plan 1/4\"")), Profile());
+        Assert.Contains(callout, e => e.Contains(ProposalValidator.NoTemplates));
     }
 
     [Fact]
@@ -154,15 +157,6 @@ public class ProposalValidatorTests
         var errors = ProposalValidator.Validate(Request(
             new PlaceViewChange("A1", "Level 1"),
             new PlaceViewChange("A1", "Level 1")), Profile());
-        Assert.Single(errors);
-    }
-
-    [Fact]
-    public void Template_assigned_twice_to_one_view_is_rejected()
-    {
-        var errors = ProposalValidator.Validate(Request(
-            new ApplyViewTemplateChange("Level 1", "A - Floor Plan 1/4\""),
-            new ApplyViewTemplateChange("Level 1", "A - Floor Plan 1/4\"")), Profile());
         Assert.Single(errors);
     }
 

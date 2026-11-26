@@ -10,6 +10,8 @@ public static class ProposalValidator
 {
     public const int MaxChangesPerProposal = 50;
 
+    public const string NoTemplates = "The drafter doesn't apply view templates (office rule). The designer sets view templates.";
+
     public static List<string> Validate(ProposalRequest request, StandardsProfile? profile)
     {
         var errors = new List<string>();
@@ -27,13 +29,10 @@ public static class ProposalValidator
         }
 
         var titleBlocks = profile.TitleBlocks;
-        var templates = profile.ViewTemplates.Select(t => t.Name).Distinct().ToList();
         var sheetNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var templateTargets = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var placements = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var scheduleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var elementIds = new HashSet<long>();
-        var scheduleTemplates = profile.ViewTemplates.Where(t => t.ViewType == "Schedule").Select(t => t.Name).Distinct().ToList();
         var finishParameters = new HashSet<string>(profile.Manual.FinishParameters ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
         var tagTypes = profile.TagTypes.Select(t => t.Name).Distinct().ToList();
         var viewFamilyTypes = profile.ViewFamilyTypes.Select(t => t.Name).Distinct().ToList();
@@ -60,25 +59,19 @@ public static class ProposalValidator
                         errors.Add(prefix + $"\"{place.ViewName}\" is placed on sheet {place.SheetNumber} more than once.");
                     break;
 
-                case ApplyViewTemplateChange template:
-                    if (!templates.Contains(template.TemplateName, StringComparer.Ordinal))
-                        errors.Add(prefix + Names.UnknownNameMessage("View template", template.TemplateName, templates));
-                    if (!templateTargets.Add($"{template.ViewType}|{template.ViewName}"))
-                        errors.Add(prefix + $"View \"{template.ViewName}\" gets a template more than once in this proposal.");
+                // Office rule (2026-11-26): the drafter never applies view templates. The change kinds
+                // stay only so proposals saved before the rule still load; new ones are refused here.
+                case ApplyViewTemplateChange:
+                    errors.Add(prefix + NoTemplates);
                     break;
 
                 case CreateScheduleChange schedule:
                     if (!scheduleNames.Add(schedule.Name))
                         errors.Add(prefix + $"Schedule \"{schedule.Name}\" is created more than once in this proposal.");
-                    if (schedule.IsCopy)
-                    {
-                        if (!profile.Schedules.Contains(schedule.SourceSchedule!, StringComparer.Ordinal))
-                            errors.Add(prefix + Names.UnknownNameMessage("Schedule", schedule.SourceSchedule!, profile.Schedules));
-                    }
-                    else if (!scheduleTemplates.Contains(schedule.TemplateName!, StringComparer.Ordinal))
-                    {
-                        errors.Add(prefix + Names.UnknownNameMessage("Schedule view template", schedule.TemplateName!, scheduleTemplates));
-                    }
+                    if (!schedule.IsCopy || schedule.TemplateName is not null)
+                        errors.Add(prefix + "Schedules are made by copying an office schedule. " + NoTemplates);
+                    else if (!profile.Schedules.Contains(schedule.SourceSchedule!, StringComparer.Ordinal))
+                        errors.Add(prefix + Names.UnknownNameMessage("Schedule", schedule.SourceSchedule!, profile.Schedules));
                     break;
 
                 case TagViewChange tag:
@@ -96,8 +89,7 @@ public static class ProposalValidator
                         if (!newViewNames.Add(callout.Name!))
                             errors.Add(prefix + $"View \"{callout.Name}\" is created more than once in this proposal.");
                     }
-                    if (callout.TemplateName is not null && !templates.Contains(callout.TemplateName, StringComparer.Ordinal))
-                        errors.Add(prefix + Names.UnknownNameMessage("View template", callout.TemplateName, templates));
+                    if (callout.TemplateName is not null) errors.Add(prefix + NoTemplates);
                     break;
 
                 case TextNoteChange note:

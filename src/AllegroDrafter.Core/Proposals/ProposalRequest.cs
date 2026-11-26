@@ -18,7 +18,6 @@ public static class ProposalRequestParser
             ToolNames.ProposeSheets => ParseSheets(args, allowViews: false),
             ToolNames.ProposeSheetSet => ParseSheets(args, allowViews: true),
             ToolNames.ProposePlaceViews => ParsePlacements(args),
-            ToolNames.ProposeViewTemplates => ParseTemplates(args),
             ToolNames.ProposeSchedules => ParseSchedules(args),
             ToolNames.ProposeParameterValues => ParseParameterValues(args),
             ToolNames.ProposeTags => ParseTags(args),
@@ -91,22 +90,6 @@ public static class ProposalRequestParser
             y);
     }
 
-    private static List<ProposalChange> ParseTemplates(JsonObject args)
-    {
-        var list = Args.RequiredArray(args, "assignments", "arguments");
-        var changes = new List<ProposalChange>();
-        for (var i = 0; i < list.Count; i++)
-        {
-            var path = $"assignments[{i}]";
-            var item = Args.ObjectAt(list, i, "assignments");
-            changes.Add(new ApplyViewTemplateChange(
-                Args.RequiredString(item, "viewName", path),
-                Args.RequiredString(item, "templateName", path),
-                Args.OptionalString(item, "viewType", path)));
-        }
-        return changes;
-    }
-
     private static List<ProposalChange> ParseSchedules(JsonObject args)
     {
         var list = Args.RequiredArray(args, "schedules", "arguments");
@@ -118,17 +101,12 @@ public static class ProposalRequestParser
             var item = Args.ObjectAt(list, i, "schedules");
             var name = Args.RequiredString(item, "name", path);
             var source = Args.OptionalString(item, "sourceSchedule", path);
-            var category = Args.OptionalString(item, "category", path)?.ToLowerInvariant();
-            var template = Args.OptionalString(item, "templateName", path);
+            if (item.ContainsKey("templateName") || item.ContainsKey("category"))
+                throw new ToolArgumentException($"{path}: schedules are made by copying an office schedule (sourceSchedule). The drafter doesn't apply view templates (office rule).");
+            if (source is null)
+                throw new ToolArgumentException($"{path}: give sourceSchedule, the office schedule to copy.");
 
-            if (source is not null && (category is not null || template is not null))
-                throw new ToolArgumentException($"{path}: give either sourceSchedule (copy an office schedule) or category + templateName, not both.");
-            if (source is null && (category is null || template is null))
-                throw new ToolArgumentException($"{path}: give sourceSchedule, or both category and templateName.");
-            if (category is not null && !ToolNames.EditableCategories.Contains(category))
-                throw new ToolArgumentException($"{path}.category must be one of: {string.Join(", ", ToolNames.EditableCategories)}.");
-
-            changes.Add(new CreateScheduleChange(name, source, category, template));
+            changes.Add(new CreateScheduleChange(name, source));
 
             var sheet = Args.OptionalString(item, "sheetNumber", path);
             if (sheet is not null)
@@ -226,9 +204,11 @@ public static class ProposalRequestParser
                     throw new ToolArgumentException($"{path}.scale must be a whole number like 24 (for 1/2\" = 1'-0\").");
                 scale = (int)scaleValue;
             }
-            var template = Args.OptionalString(item, "templateName", path);
-            if (reference is not null && (scale is not null || template is not null))
-                throw new ToolArgumentException($"{path}: scale and templateName only apply to new detail callouts.");
+            if (item.ContainsKey("templateName"))
+                throw new ToolArgumentException($"{path}.templateName: the drafter doesn't apply view templates (office rule). Leave it out; the designer sets templates.");
+            if (reference is not null && scale is not null)
+                throw new ToolArgumentException($"{path}: scale only applies to new detail callouts.");
+            string? template = null;
 
             changes.Add(new CalloutChange(
                 Args.RequiredString(item, "parentView", path),

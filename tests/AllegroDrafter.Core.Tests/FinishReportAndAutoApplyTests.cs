@@ -12,15 +12,13 @@ public class FinishReportAndAutoApplyTests
     // ------------------------------------------------------------------ order
 
     [Fact]
-    public void Views_get_placed_then_templated_then_schedules_fixed()
+    public void Run_order_has_no_view_template_step()
     {
         var ids = FinishPlanner.Steps.Select(s => s.Id).ToList();
-        // A schedule template replaces the schedule's columns and sorting, so templates go first.
-        Assert.True(ids.IndexOf("view-templates") < ids.IndexOf("schedules"));
-        // The cover sheet places the sheet index; it must exist before templates are handed out.
-        Assert.True(ids.IndexOf("cover-sheet") < ids.IndexOf("view-templates"));
+        Assert.DoesNotContain("view-templates", ids);
         Assert.Equal("gate", ids[0]);
-        Assert.Equal(11, ids.Distinct().Count());
+        Assert.True(ids.IndexOf("cover-sheet") < ids.IndexOf("schedules"));
+        Assert.Equal(10, ids.Distinct().Count());
     }
 
     [Fact]
@@ -50,30 +48,6 @@ public class FinishReportAndAutoApplyTests
         Assert.True(FinishPlanner.Steps.Select(s => s.Id).ToList().IndexOf(first.StepId) < FinishPlanner.Steps.Select(s => s.Id).ToList().IndexOf("schedules"));
     }
 
-    [Fact]
-    public void View_type_with_no_office_template_is_said_once_not_skipped_silently()
-    {
-        var facts = new SetFacts
-        {
-            Sheets = { new SheetFact("A6", "ROOF", 1) },
-            PlacedViews = { new ViewFact("HOUSE ROOF PLAN", "EngineeringPlan", 48, null, new[] { "A6" }), new ViewFact("ROOF FRAMING PLAN", "EngineeringPlan", 48, null, new[] { "S4" }) },
-        };
-        var profile = new StandardsProfile { ViewTemplates = { new ViewTemplateInfo("ADC - Arch Floor Plan", "FloorPlan") } };
-        profile.Manual.Audit.TemplateRequiredViewTypes = new List<string> { "EngineeringPlan" };
-        var state = new FinishState { SkippedSteps = { "cover-sheet" } };
-        FinishStep Next() => FinishPlanner.Next(facts, SetAuditor.Run(facts, profile.Manual.Audit, profile.ViewTemplates.Select(t => t.Name).ToList()), profile, state);
-
-        var q = Assert.IsType<FinishQuestions>(Next());
-        var card = Assert.Single(q.Cards);
-        Assert.Equal("view-templates", card.Step);
-        Assert.Contains("HOUSE ROOF PLAN", card.Prompt);
-        Assert.Contains("no view template for EngineeringPlan", card.Prompt);
-        Assert.Equal(new[] { FinishState.DoneByHand, FinishState.Skip }, card.Options);
-
-        state.Answers[card.Id] = FinishState.DoneByHand;
-        Assert.IsNotType<FinishQuestions>(Next());
-    }
-
     // ------------------------------------------------------------- auto-apply
 
     private static FinishBatch Batch(string step, params ProposalChange[] changes) =>
@@ -85,7 +59,6 @@ public class FinishReportAndAutoApplyTests
     [InlineData("gate", true)]
     [InlineData("parameters", true)]
     [InlineData("cover-sheet", false)]
-    [InlineData("view-templates", false)]
     [InlineData("schedules", false)]
     [InlineData("tags", false)]
     [InlineData("type-marks", false)]
@@ -103,31 +76,12 @@ public class FinishReportAndAutoApplyTests
     {
         var everything = new FinishDraftingSettings { AutoApplySteps = FinishPlanner.Steps.Select(s => s.Id).ToList() };
         // 25-0083: 33 templates by rule moved viewports and turned analytical and reference lines back on.
-        Assert.Contains("view template", FinishPlanner.WaitReason(Batch("view-templates", new ApplyViewTemplateChange("MAIN FLOOR PLAN", "ADC - Arch Floor Plan", "FloorPlan")), everything));
+        Assert.Contains("view templates", FinishPlanner.WaitReason(Batch("cover-sheet", new ApplyViewTemplateChange("MAIN FLOOR PLAN", "ADC - Arch Floor Plan", "FloorPlan")), everything));
         Assert.NotNull(FinishPlanner.WaitReason(Batch("cover-sheet", new PlaceViewChange("CS", "DRAWING INDEX", "Schedule")), everything));
         Assert.NotNull(FinishPlanner.WaitReason(Batch("tags", new TagViewChange("RIGHT ELEVATION", "doors")), everything));
         // Model data only: the office list decides.
         Assert.Null(FinishPlanner.WaitReason(Batch("schedules", new ScheduleSortChange("DOOR SCHEDULE", new[] { "Type Mark" })), everything));
         Assert.Null(FinishPlanner.WaitReason(Batch("door-swing", Mark), everything));
-    }
-
-    [Fact]
-    public void Detail_sections_are_asked_apart_from_building_sections()
-    {
-        var facts = new SetFacts
-        {
-            PlacedViews =
-            {
-                new ViewFact("Section 1/A4", "Section", 48, null, new[] { "A4" }),
-                new ViewFact("DETAIL 1/S1", "Section", 12, null, new[] { "S1" }),
-                new ViewFact("TIMBER TRUSS DETAILS", "Section", 12, null, new[] { "S2" }),
-            },
-        };
-        var profile = new StandardsProfile { ViewTemplates = { new ViewTemplateInfo("ADC - Building Section", "Section"), new ViewTemplateInfo("Structural Section", "Section") } };
-        var state = new FinishState { SkippedSteps = { "cover-sheet" } };
-        var q = Assert.IsType<FinishQuestions>(FinishPlanner.Next(facts, SetAuditor.Run(facts, profile.Manual.Audit, profile.ViewTemplates.Select(t => t.Name).ToList()), profile, state));
-        Assert.Equal(new[] { "template:Section:", "template:Section:DETAIL" }, q.Cards.Select(c => c.Id).OrderBy(i => i));
-        Assert.Contains("TIMBER TRUSS DETAILS", q.Cards.Single(c => c.Id == "template:Section:DETAIL").Prompt);
     }
 
     [Fact]

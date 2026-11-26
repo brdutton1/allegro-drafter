@@ -84,9 +84,9 @@ public sealed class FinishDraftingSettings
     /// <summary>
     /// Steps whose batches apply without an Approve click. Office decision. Default: only steps that
     /// change model data and nothing a sheet shows. Whatever this says, a batch never applies on its
-    /// own if it deletes, applies view templates, places views on sheets or places tags: those change
+    /// own if it deletes, places views on sheets or places tags: those change
     /// what the sheets look like, so the designer sees them first. Question cards always wait.
-    /// Step ids: gate, parameters, type-marks, cover-sheet, view-templates, schedules,
+    /// Step ids: gate, parameters, type-marks, cover-sheet, schedules,
     /// tempered-egress, rooms, door-swing, room-cleanup, tags.
     /// </summary>
     public List<string> AutoApplySteps { get; set; } = new() { "gate", "parameters" };

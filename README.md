@@ -2,7 +2,7 @@
 
 AI drafting assistant for Revit 2025 and 2026, built for Allegro Design Co.
 
-Claude does the grunt drafting: sheet setup, view placement, view templates. Later phases add schedules, details and annotation. **The designer approves every change.** Nothing touches the model until you click Approve. Each approval is one Ctrl+Z.
+The drafter does the tedious drafting: dimensions, door/window/room tags, sections and elevations, and checking schedules. It works with the types already in the job. It never touches the office template or view templates; those stay the designer's. **The designer approves every change.** Nothing touches the model until you click Approve. Each approval is one Ctrl+Z.
 
 ## How it works
 
@@ -21,7 +21,7 @@ Approval pane in Revit ── you approve or reject ── one transaction, logg
 
 Three rules hold the whole thing together:
 
-1. **The AI can't invent names.** Title blocks, view templates and types must match the office standards profile exported from your template. A wrong name is refused before you ever see it, with a "did you mean" hint so Claude fixes it itself.
+1. **The AI can't invent names.** Title blocks and types must match the office standards profile exported from your template. A wrong name is refused before you ever see it, with a "did you mean" hint so Claude fixes it itself.
 2. **The AI can't change the model.** It can only propose. Proposals are checked against the live model twice: when proposed, and again right before applying.
 3. **Everything is logged.** Every approve, reject and failure goes to `%APPDATA%\AllegroDrafter\audit\YYYY-MM.jsonl`.
 
@@ -34,10 +34,10 @@ Runs in Revit 2026 on a real job: sheets, schedules, the set audit and its fixes
 | `get_standards` | Office standards profile: the only names the AI may use |
 | `get_project_info`, `list_levels`, `list_views`, `list_sheets`, `list_rooms`, `count_elements` | Read the model |
 | `propose_sheet_set` | New sheets plus the views on them, one batch |
-| `propose_sheets`, `propose_place_views`, `propose_view_templates` | Smaller batches |
+| `propose_sheets`, `propose_place_views` | Smaller batches |
 | `list_schedules`, `list_elements`, `read_legend` | Read schedules, doors/windows/rooms with parameters, legend text |
-| `audit_set` | Read-only punch list before issue: size codes, schedules, tags, wall Function, wall legend, sheets, scales, text height, rooms, templates, egress, tempered, typed references, cover sheet |
-| `propose_schedules` | Door, window, room and finish schedules from office schedules, placed on sheets |
+| `audit_set` | Read-only punch list before issue: size codes, schedules, tags, wall Function, wall legend, sheets, scales, text height, rooms, egress, tempered, typed references, cover sheet (view templates only when asked by name) |
+| `propose_schedules` | Door, window, room and finish schedules copied from office schedules, placed on sheets |
 | `propose_schedule_fields` | Add, remove and position schedule columns (e.g. Mark on the door schedule) |
 | `propose_schedule_sort` | Sort/group a schedule (Type Mark, then swing) and turn itemizing on or off |
 | `propose_type_marks` | Size-code Type Marks on door and window types (`376` -> `3080`), checked against the real size |
@@ -54,7 +54,7 @@ Runs in Revit 2026 on a real job: sheets, schedules, the set audit and its fixes
 
 ## Finish Drafting
 
-**Allegro > Finish Drafting** runs the office rules on the open set, in order: wall types, parameters, size-code Type Marks, schedules, tempered and egress, room numbers and sizes, door swing, unplaced rooms, view templates, tags, cover sheet. One batch at a time. You approve or reject each one; rejecting skips that step. Anything a rule can't settle shows up as a question card with the choices on it. No AI runs inside the button.
+**Allegro > Finish Drafting** runs the office rules on the open set, in order: wall types, parameters, size-code Type Marks, cover sheet, schedules, tempered and egress, room numbers and sizes, door swing, unplaced rooms, tags. It never applies view templates. One batch at a time. Model-data steps the office lists apply on their own; anything that changes a sheet or deletes waits for your click. Rejecting skips that step. When it finishes, "What changed" lists every sheet it touched. Anything a rule can't settle shows up as a question card with the choices on it. No AI runs inside the button.
 
 ## Get started
 

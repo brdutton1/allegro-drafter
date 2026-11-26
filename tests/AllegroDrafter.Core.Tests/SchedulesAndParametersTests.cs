@@ -13,27 +13,24 @@ public class ScheduleParsingTests
         var request = ProposalRequestParser.Parse(ToolNames.ProposeSchedules, Obj("""
             { "title": "Schedules", "schedules": [
               { "name": "DOOR SCHEDULE", "sourceSchedule": "OFFICE DOOR SCHEDULE", "sheetNumber": "A6.1" },
-              { "name": "WINDOW SCHEDULE", "sourceSchedule": "OFFICE WINDOW SCHEDULE", "sheetNumber": "A6.1", "xFeet": 1, "yFeet": 1.5 },
-              { "name": "ROOM FINISH SCHEDULE", "category": "Rooms", "templateName": "Room Finish" } ] }
+              { "name": "WINDOW SCHEDULE", "sourceSchedule": "OFFICE WINDOW SCHEDULE", "sheetNumber": "A6.1", "xFeet": 1, "yFeet": 1.5 } ] }
             """));
 
-        Assert.Equal(5, request.Changes.Count);
+        Assert.Equal(4, request.Changes.Count);
         var door = Assert.IsType<CreateScheduleChange>(request.Changes[0]);
         Assert.True(door.IsCopy);
-        var finish = Assert.IsType<CreateScheduleChange>(request.Changes[2]);
-        Assert.Equal(("rooms", "Room Finish"), (finish.Category, finish.TemplateName));
-        var place = Assert.IsType<PlaceViewChange>(request.Changes[3]);
+        Assert.Null(door.TemplateName);
+        var place = Assert.IsType<PlaceViewChange>(request.Changes[2]);
         Assert.Equal(("A6.1", "DOOR SCHEDULE", "Schedule"), (place.SheetNumber, place.ViewName, place.ViewType));
-        Assert.True(Assert.IsType<PlaceViewChange>(request.Changes[4]).HasPosition);
+        Assert.True(Assert.IsType<PlaceViewChange>(request.Changes[3]).HasPosition);
         Assert.Contains("copy of", door.Describe());
-        Assert.Contains("rooms schedule", finish.Describe());
     }
 
     [Theory]
-    [InlineData("""{ "name": "S", "sourceSchedule": "A", "category": "doors" }""", "not both")]
+    [InlineData("""{ "name": "S", "sourceSchedule": "A", "category": "doors" }""", "doesn't apply view templates")]
     [InlineData("""{ "name": "S" }""", "give sourceSchedule")]
-    [InlineData("""{ "name": "S", "category": "doors" }""", "give sourceSchedule")]
-    [InlineData("""{ "name": "S", "category": "walls", "templateName": "T" }""", "category must be one of")]
+    [InlineData("""{ "name": "S", "category": "doors" }""", "doesn't apply view templates")]
+    [InlineData("""{ "name": "S", "category": "rooms", "templateName": "Room Finish" }""", "doesn't apply view templates")]
     [InlineData("""{ "name": "S", "sourceSchedule": "A", "sheetNumber": "A1", "xFeet": 1 }""", "both xFeet and yFeet")]
     public void Bad_schedule_input_is_refused(string item, string expected)
     {
@@ -105,11 +102,9 @@ public class ScheduleAndFinishValidationTests
         new(id, $"Room {id}", values.Select(v => new ParameterValue(v.Item1, v.Item2)).ToList());
 
     [Fact]
-    public void Known_schedule_and_template_pass()
+    public void Copy_of_a_known_schedule_passes()
     {
-        Assert.Empty(Validate(ProfileWithFinishes(),
-            new CreateScheduleChange("DOOR SCHEDULE", SourceSchedule: "OFFICE DOOR SCHEDULE"),
-            new CreateScheduleChange("FINISHES", Category: "rooms", TemplateName: "Room Finish")));
+        Assert.Empty(Validate(ProfileWithFinishes(), new CreateScheduleChange("DOOR SCHEDULE", SourceSchedule: "OFFICE DOOR SCHEDULE")));
     }
 
     [Fact]
@@ -120,11 +115,11 @@ public class ScheduleAndFinishValidationTests
     }
 
     [Fact]
-    public void Non_schedule_template_is_refused()
+    public void Schedule_from_a_view_template_is_refused_even_a_real_one()
     {
-        // "A - Floor Plan" is a real template but a FloorPlan one, not a Schedule one.
-        var error = Assert.Single(Validate(ProfileWithFinishes(), new CreateScheduleChange("X", Category: "rooms", TemplateName: "A - Floor Plan 1/4\"")));
-        Assert.Contains("Schedule view template", error);
+        // Saved before the rule, or sent by hand: still refused. Schedules are copies of office schedules.
+        var error = Assert.Single(Validate(ProfileWithFinishes(), new CreateScheduleChange("FINISHES", Category: "rooms", TemplateName: "Room Finish")));
+        Assert.Contains(ProposalValidator.NoTemplates, error);
     }
 
     [Fact]

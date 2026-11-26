@@ -69,8 +69,9 @@ public static class SetAuditor
         }
 
         var ctx = new Ctx(facts, settings, officeTemplates ?? Array.Empty<string>(), SuggestMarks(facts.OpeningTypes, settings));
+        var disabled = new HashSet<string>(settings.DisabledChecks ?? new List<string>(), StringComparer.OrdinalIgnoreCase);
         var results = Catalog
-            .Where(c => only is not { Count: > 0 } || only.Contains(c.Id))
+            .Where(c => only is { Count: > 0 } ? only.Contains(c.Id) : !disabled.Contains(c.Id))
             .Select(c => c.Run(ctx))
             .ToList();
 

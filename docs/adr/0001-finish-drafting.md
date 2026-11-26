@@ -74,6 +74,16 @@ First full run on 25-0083: 13 approvals and 13 cards in about 5 minutes. Most ap
 
 This keeps the designer in control: the office decides which steps are mechanical, the designer can override per run, and nothing a rule applies goes unreported.
 
+## Amendment 2 (2026-11-26): scope is drafting, never view templates
+
+Bryan: "I don't want you to change the template we have unless I'm asking you to work in the template... You are only supposed to be drafting, tagging, verifying schedules." Then: "I don't want you to do anything with the view templates. Everything else is good to keep."
+
+- The `view-templates` step is gone from the run. `propose_view_templates` is gone from the tools. Schedules are only copied from office schedules, never built from a schedule template. Callouts carry no template. The validator refuses all of these, including from proposals saved before the rule.
+- The `view-templates` audit check is off by default (`manual.audit.disabledChecks`). It still runs when asked by name.
+- The office template file is never touched. Template work is a separate job, done only when Bryan asks.
+- Kept: wall Function, parameters, Type Marks, cover sheet, schedule columns and sort, tempered/egress, room numbers and sizes, door swing, room cleanup, tags.
+- Next: the drafting engine (dimensions, collision-free tags, schedule-contents check, elevations and sections created and annotated) on the job's own types. See ROADMAP "Drafting engine".
+
 ## Next after this: sections and elevations
 
 See [0002-section-and-elevation-labels.md](0002-section-and-elevation-labels.md).

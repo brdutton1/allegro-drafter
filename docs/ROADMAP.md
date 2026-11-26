@@ -14,7 +14,7 @@ End state and phase order: [PRODUCT-PLAN.md](PRODUCT-PLAN.md). Design decisions:
 - [x] ExternalEvent dispatcher with timeouts
 - [x] Localhost MCP server with token auth, stdio bridge for Claude Desktop / Code
 - [x] Read tools: project info, levels, views, sheets, rooms, element counts
-- [x] Proposals: create sheets, place views/legends/schedules (auto-arrange or exact), apply view templates
+- [x] Proposals: create sheets, place views/legends/schedules (auto-arrange or exact). View templates removed 2026-11-26 (office rule: the designer's call)
 - [x] Standards and model validation, one-transaction apply, double-click safe, retry on failure
 - [x] Audit log
 - [x] Pending proposals saved to disk; crash mid-apply comes back as Failed, never re-applied
@@ -27,7 +27,7 @@ End state and phase order: [PRODUCT-PLAN.md](PRODUCT-PLAN.md). Design decisions:
 
 ## Phase 2: Schedules + details (schedules built, not yet run in Revit)
 - [x] list_schedules, list_elements (doors/windows/rooms with parameters), read_legend
-- [x] Create schedules by copying office schedules, or category + schedule view template, and place them on sheets
+- [x] Create schedules by copying office schedules and place them on sheets
 - [x] Set door/window/room instance parameters (marks, names, numbers, finishes). Type parameters refused.
 - [x] Finish codes from the legend enforced on finish parameters
 - [x] Add/remove/position schedule columns
@@ -74,8 +74,18 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 - [x] "What changed" report by sheet: in the run panel with Open/Show, markdown file per run, survives restarts, undone batches drop out
 - [x] Step order: cover sheet, view templates, then schedules (no repeated steps); a view type with no office template gets one card instead of silence
 - [x] Auto-apply narrowed to model-only steps; view templates, sheet placement and tags always wait (25-0083 review: templates moved viewports and showed analytical/reference lines). Detail sections asked apart from building sections
-- [ ] View templates on laid-out jobs: compare each template's scale/crop/visibility to the view before proposing, or leave templates to Phase C
+- [x] Scope (2026-11-26): no template work, nothing with view templates. Finish Drafting step, `propose_view_templates`, schedule-from-template and callout templates removed; validator refuses them; `view-templates` audit check off by default (`manual.audit.disabledChecks`)
 - [ ] Cover sheet: place the sheet index in empty space, not the drawing area's top-left
+
+## Drafting engine (plan approved 2026-11-26)
+The drafter does the drafting on the job as it is, with the job's own types. Only adds; never moves the designer's annotation.
+- [ ] Spikes in Revit: core-face references for dims, real tag bounding boxes, API-created elevations/sections get no default template, dimensioning to levels
+- [ ] Phase 1: floor plan dims. Side by exterior face normal (L/U/T plans), face of stud or finish face, interior dims locating every wall, closure check, foundation plans
+- [ ] Phase 2: tags that don't collide (measured tag sizes, greedy layout, leaders as fallback)
+- [ ] Phase 3: `schedule-contents` check with a fix per finding
+- [ ] Phase 4: exterior elevations created (FRONT/REAR/LEFT/RIGHT), tagged, height strings, roof pitch, placed on A2/A3
+- [ ] Phase 5: building sections created by rule, labeled, heights, placed on A4/A5
+- [ ] Phase 6: Finish Drafting runs the drafting steps, one view per batch
 - [ ] Second run with the new build on a fresh job copy: count clicks, check the report against the sheets
 - [ ] Spot-check door handing (573 Therma-Tru "Inswing" read as LHR) and lock the convention in `manual.audit`
 - [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area

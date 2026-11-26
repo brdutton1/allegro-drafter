@@ -54,10 +54,8 @@ public static class FinishPlanner
     public const int MaxChanges = 50;
 
     /// <summary>
-    /// Run order. Anything that places a view (cover sheet) comes before view templates, so new
-    /// views get a template in the same pass. View templates come before schedules, because a
-    /// schedule template replaces the schedule's columns and sorting; the schedule step then puts
-    /// the office columns back on top of it instead of being wiped by it.
+    /// Run order. No view-template step: office rule (2026-11-26), view templates belong to the
+    /// designer, never the drafter. Applying them to laid-out views moved viewports on 25-0083.
     /// </summary>
     public static readonly IReadOnlyList<(string Id, string Title)> Steps = new[]
     {
@@ -65,7 +63,6 @@ public static class FinishPlanner
         ("parameters", "Parameters"),
         ("type-marks", "Size-code Type Marks"),
         ("cover-sheet", "Cover sheet"),
-        ("view-templates", "View templates"),
         ("schedules", "Door and window schedules"),
         ("tempered-egress", "Tempered and egress"),
         ("rooms", "Room numbers and sizes"),
@@ -84,7 +81,7 @@ public static class FinishPlanner
         if (changes.Any(c => c.IsDestructive)) return "it deletes";
         // A view template overwrites the view's own scale, crop, view range and visibility: viewports
         // resize and shift on the sheet, hidden categories come back (25-0083, 2026-11-26). Never by rule.
-        if (changes.Any(c => c is ApplyViewTemplateChange)) return "a view template changes how placed views look on their sheets (scale, crop, visibility)";
+        if (changes.Any(c => c is ApplyViewTemplateChange)) return "the drafter doesn't apply view templates (office rule)";
         if (changes.Any(c => c is PlaceViewChange)) return "it places a view on a sheet";
         if (changes.Any(c => c is TagViewChange)) return "it places tags on sheets' views";
         var auto = settings?.AutoApplySteps ?? new FinishDraftingSettings().AutoApplySteps;
@@ -109,7 +106,6 @@ public static class FinishPlanner
                 "rooms" => Rooms(ctx),
                 "door-swing" => DoorSwing(ctx),
                 "room-cleanup" => RoomCleanup(ctx),
-                "view-templates" => ViewTemplates(ctx),
                 "tags" => Tags(ctx),
                 "cover-sheet" => CoverSheet(ctx),
                 _ => null,
@@ -411,57 +407,6 @@ public static class FinishPlanner
 
     // DETAIL first: "DETAIL 1/S1" and "TIMBER TRUSS DETAILS" are details drawn as sections, not building sections.
     private static readonly string[] ViewKeywords = { "DETAIL", "FOUNDATION", "FRAMING", "SITE", "ROOF", "CEILING", "STRUCTURAL", "ELECTRICAL" };
-
-    private static Planned? ViewTemplates(Ctx c)
-    {
-        var templates = c.Profile?.ViewTemplates ?? new List<ViewTemplateInfo>();
-        if (templates.Count == 0) return null; // no office list to choose from; the audit reports it
-        var required = c.S.TemplateRequiredViewTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var views = c.Facts.PlacedViews.Where(v => v.Template is null && required.Contains(v.ViewType)).ToList();
-
-        var changes = new List<ProposalChange>();
-        var cards = new List<QuestionCard>();
-
-        // Revit only takes a template made for the same kind of view. When the office has none for a
-        // kind, that's a template fix, not something to guess per job: say so once per kind and move on.
-        bool HasChoices(string viewType) => templates.Any(t => Same(t.ViewType, viewType));
-        foreach (var kind in views.Where(v => !HasChoices(v.ViewType)).GroupBy(v => v.ViewType, StringComparer.OrdinalIgnoreCase).OrderBy(g => g.Key))
-        {
-            var id = $"template:{kind.Key}:none";
-            if (c.State.Answered(id)) continue;
-            var names = string.Join(", ", kind.Take(4).Select(v => v.Name)) + (kind.Count() > 4 ? ", ..." : "");
-            cards.Add(new QuestionCard(id, "view-templates",
-                $"The office template has no view template for {kind.Key} views ({names}), so the button can't apply one. Make one in the office template and re-export standards, or set these by hand.",
-                new[] { FinishState.DoneByHand, FinishState.Skip }));
-        }
-
-        foreach (var group in views.Where(v => HasChoices(v.ViewType)).GroupBy(v => (v.ViewType, Keyword: ViewKeywords.FirstOrDefault(k => v.Name.Contains(k, StringComparison.OrdinalIgnoreCase)) ?? "")).OrderBy(g => g.Key.ViewType).ThenBy(g => g.Key.Keyword))
-        {
-            var (viewType, keyword) = group.Key;
-            var choices = templates.Where(t => Same(t.ViewType, viewType)).Select(t => t.Name).ToList();
-            var id = $"template:{viewType}:{keyword}";
-            var rule = c.S.ViewTemplateRules.FirstOrDefault(r => Same(r.ViewType, viewType) && (string.IsNullOrEmpty(r.NameContains) ? keyword == "" : keyword.Equals(r.NameContains, StringComparison.OrdinalIgnoreCase)));
-            var pick = rule?.Template ?? c.State.Answer(id);
-            if (pick == FinishState.Skip) continue;
-            if (pick is not null && choices.Contains(pick))
-            {
-                changes.AddRange(group.OrderBy(v => v.Name).Select(v => new ApplyViewTemplateChange(v.Name, pick, v.ViewType)));
-                continue;
-            }
-            var lean = choices.OrderByDescending(n => keyword != "" && n.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                .ThenByDescending(n => n.StartsWith("ADC", StringComparison.OrdinalIgnoreCase)).First();
-            var what = keyword == "" ? $"{Plural(group.Count(), viewType + " view")}" : $"{Plural(group.Count(), keyword.ToLowerInvariant() + " " + viewType + " view")}";
-            var sample = string.Join(", ", group.Take(4).Select(v => v.Name)) + (group.Count() > 4 ? ", ..." : "");
-            cards.Add(new QuestionCard(id, "view-templates",
-                $"Which office template for {what} ({sample})? Save the answer in manual.audit.viewTemplateRules to skip this question next job.",
-                choices.OrderByDescending(n => n == lean).Append(FinishState.Skip).ToList(), Recommended: lean));
-        }
-        return BatchOrAsk("View templates",
-            "Every placed view gets an office template, so lineweights, scale and visibility match sheet to sheet. "
-            + "WARNING: a template overwrites each view's own scale, crop, view range and visibility. Viewports can resize and move on their sheets, and categories hidden by hand (analytical, reference lines) can come back. "
-            + "Removing the template later does not restore the old settings. On a job whose sheets are already laid out, reject this and leave templates to the office template.",
-            changes, cards, c.State);
-    }
 
     private static Planned? Tags(Ctx c)
     {

@@ -861,7 +861,11 @@ public class SetAuditorTests
     public void Full_run_counts_and_verdict()
     {
         var report = SetAuditor.Run(new SetFacts(), null);
-        Assert.Equal(SetAuditor.CheckIds.Count, report.Checks.Count);
+        // Every check but the ones off by default (view-templates: the designer's call, office rule).
+        Assert.Equal(SetAuditor.CheckIds.Count - 1, report.Checks.Count);
+        Assert.DoesNotContain(report.Checks, c => c.Id == "view-templates");
+        Assert.Contains(SetAuditor.Run(new SetFacts(), null, null, new[] { "view-templates" }).Checks, c => c.Id == "view-templates"); // still runs when asked by name
+        Assert.Equal(SetAuditor.CheckIds.Count, SetAuditor.Run(new SetFacts(), new AuditSettings { DisabledChecks = new() }).Checks.Count);
         Assert.Equal(report.Checks.Count, report.Summary.Pass + report.Summary.Warn + report.Summary.Fail + report.Summary.Skip);
         Assert.StartsWith("Not ready to issue.", report.Summary.Verdict);
         Assert.Contains(report.Notes, n => n.Contains("does not check dimension strings"));
