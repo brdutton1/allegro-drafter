@@ -73,7 +73,10 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 - [x] Office auto-apply rule (`manual.finishDrafting.autoApplySteps`; deletes always wait), per-run "stop at every batch" override
 - [x] "What changed" report by sheet: in the run panel with Open/Show, markdown file per run, survives restarts, undone batches drop out
 - [x] Step order: cover sheet, view templates, then schedules (no repeated steps); a view type with no office template gets one card instead of silence
-- [ ] Second run on 25-0083 with the new build: count clicks, check the report against the sheets
+- [x] Auto-apply narrowed to model-only steps; view templates, sheet placement and tags always wait (25-0083 review: templates moved viewports and showed analytical/reference lines). Detail sections asked apart from building sections
+- [ ] View templates on laid-out jobs: compare each template's scale/crop/visibility to the view before proposing, or leave templates to Phase C
+- [ ] Cover sheet: place the sheet index in empty space, not the drawing area's top-left
+- [ ] Second run with the new build on a fresh job copy: count clicks, check the report against the sheets
 - [ ] Spot-check door handing (573 Therma-Tru "Inswing" read as LHR) and lock the convention in `manual.audit`
 - [ ] Manufacturer data per type (RO, net clear W/H, U-factor, SHGC), then RO in schedules and egress by net clear area
 - [ ] Dimension strings close to their overall, no gaps

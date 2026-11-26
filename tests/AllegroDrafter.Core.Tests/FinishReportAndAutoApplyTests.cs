@@ -84,10 +84,10 @@ public class FinishReportAndAutoApplyTests
     [Theory]
     [InlineData("gate", true)]
     [InlineData("parameters", true)]
-    [InlineData("cover-sheet", true)]
-    [InlineData("view-templates", true)]
-    [InlineData("schedules", true)]
-    [InlineData("tags", true)]
+    [InlineData("cover-sheet", false)]
+    [InlineData("view-templates", false)]
+    [InlineData("schedules", false)]
+    [InlineData("tags", false)]
     [InlineData("type-marks", false)]
     [InlineData("tempered-egress", false)]
     [InlineData("rooms", false)]
@@ -96,6 +96,38 @@ public class FinishReportAndAutoApplyTests
     {
         Assert.Equal(auto, FinishPlanner.WaitReason(Batch(step, Mark), new FinishDraftingSettings()) is null);
         Assert.Equal(auto, FinishPlanner.WaitReason(Batch(step, Mark), null) is null); // no standards loaded: same defaults
+    }
+
+    [Fact]
+    public void Anything_that_changes_how_a_sheet_looks_waits_even_if_the_office_lists_it()
+    {
+        var everything = new FinishDraftingSettings { AutoApplySteps = FinishPlanner.Steps.Select(s => s.Id).ToList() };
+        // 25-0083: 33 templates by rule moved viewports and turned analytical and reference lines back on.
+        Assert.Contains("view template", FinishPlanner.WaitReason(Batch("view-templates", new ApplyViewTemplateChange("MAIN FLOOR PLAN", "ADC - Arch Floor Plan", "FloorPlan")), everything));
+        Assert.NotNull(FinishPlanner.WaitReason(Batch("cover-sheet", new PlaceViewChange("CS", "DRAWING INDEX", "Schedule")), everything));
+        Assert.NotNull(FinishPlanner.WaitReason(Batch("tags", new TagViewChange("RIGHT ELEVATION", "doors")), everything));
+        // Model data only: the office list decides.
+        Assert.Null(FinishPlanner.WaitReason(Batch("schedules", new ScheduleSortChange("DOOR SCHEDULE", new[] { "Type Mark" })), everything));
+        Assert.Null(FinishPlanner.WaitReason(Batch("door-swing", Mark), everything));
+    }
+
+    [Fact]
+    public void Detail_sections_are_asked_apart_from_building_sections()
+    {
+        var facts = new SetFacts
+        {
+            PlacedViews =
+            {
+                new ViewFact("Section 1/A4", "Section", 48, null, new[] { "A4" }),
+                new ViewFact("DETAIL 1/S1", "Section", 12, null, new[] { "S1" }),
+                new ViewFact("TIMBER TRUSS DETAILS", "Section", 12, null, new[] { "S2" }),
+            },
+        };
+        var profile = new StandardsProfile { ViewTemplates = { new ViewTemplateInfo("ADC - Building Section", "Section"), new ViewTemplateInfo("Structural Section", "Section") } };
+        var state = new FinishState { SkippedSteps = { "cover-sheet" } };
+        var q = Assert.IsType<FinishQuestions>(FinishPlanner.Next(facts, SetAuditor.Run(facts, profile.Manual.Audit, profile.ViewTemplates.Select(t => t.Name).ToList()), profile, state));
+        Assert.Equal(new[] { "template:Section:", "template:Section:DETAIL" }, q.Cards.Select(c => c.Id).OrderBy(i => i));
+        Assert.Contains("TIMBER TRUSS DETAILS", q.Cards.Single(c => c.Id == "template:Section:DETAIL").Prompt);
     }
 
     [Fact]
@@ -119,7 +151,7 @@ public class FinishReportAndAutoApplyTests
     public void Standards_without_the_section_get_the_defaults_and_with_it_keep_the_office_list()
     {
         var old = JsonSerializer.Deserialize<StandardsProfile>("""{ "manual": { "rules": [] } }""", Json.Indented)!;
-        Assert.Contains("schedules", old.Manual.FinishDrafting.AutoApplySteps);
+        Assert.Equal(new[] { "gate", "parameters" }, old.Manual.FinishDrafting.AutoApplySteps);
         Assert.Contains("Room Size", old.Manual.FinishDrafting.TagLabelParameters);
 
         var custom = JsonSerializer.Deserialize<StandardsProfile>("""{ "manual": { "finishDrafting": { "autoApplySteps": ["tags"] } } }""", Json.Indented)!;

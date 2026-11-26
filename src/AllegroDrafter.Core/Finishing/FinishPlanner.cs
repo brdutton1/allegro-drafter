@@ -80,7 +80,13 @@ public static class FinishPlanner
     /// </summary>
     public static string? WaitReason(FinishBatch batch, FinishDraftingSettings? settings)
     {
-        if (batch.Request.Changes.Any(c => c.IsDestructive)) return "it deletes";
+        var changes = batch.Request.Changes;
+        if (changes.Any(c => c.IsDestructive)) return "it deletes";
+        // A view template overwrites the view's own scale, crop, view range and visibility: viewports
+        // resize and shift on the sheet, hidden categories come back (25-0083, 2026-11-26). Never by rule.
+        if (changes.Any(c => c is ApplyViewTemplateChange)) return "a view template changes how placed views look on their sheets (scale, crop, visibility)";
+        if (changes.Any(c => c is PlaceViewChange)) return "it places a view on a sheet";
+        if (changes.Any(c => c is TagViewChange)) return "it places tags on sheets' views";
         var auto = settings?.AutoApplySteps ?? new FinishDraftingSettings().AutoApplySteps;
         return auto.Contains(batch.StepId, StringComparer.OrdinalIgnoreCase) ? null : "the office rule has you check this step";
     }
@@ -403,7 +409,8 @@ public static class FinishPlanner
             new ProposalChange[] { new DeleteRoomsChange(unplaced, false, names) });
     }
 
-    private static readonly string[] ViewKeywords = { "FOUNDATION", "FRAMING", "SITE", "ROOF", "CEILING", "STRUCTURAL", "ELECTRICAL" };
+    // DETAIL first: "DETAIL 1/S1" and "TIMBER TRUSS DETAILS" are details drawn as sections, not building sections.
+    private static readonly string[] ViewKeywords = { "DETAIL", "FOUNDATION", "FRAMING", "SITE", "ROOF", "CEILING", "STRUCTURAL", "ELECTRICAL" };
 
     private static Planned? ViewTemplates(Ctx c)
     {
@@ -450,7 +457,9 @@ public static class FinishPlanner
                 choices.OrderByDescending(n => n == lean).Append(FinishState.Skip).ToList(), Recommended: lean));
         }
         return BatchOrAsk("View templates",
-            "Every placed view gets an office template, so lineweights, scale and visibility match sheet to sheet.",
+            "Every placed view gets an office template, so lineweights, scale and visibility match sheet to sheet. "
+            + "WARNING: a template overwrites each view's own scale, crop, view range and visibility. Viewports can resize and move on their sheets, and categories hidden by hand (analytical, reference lines) can come back. "
+            + "Removing the template later does not restore the old settings. On a job whose sheets are already laid out, reject this and leave templates to the office template.",
             changes, cards, c.State);
     }
 
