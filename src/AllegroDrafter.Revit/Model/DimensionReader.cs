@@ -1,4 +1,4 @@
-using AllegroDrafter.Core.Proposals;
+﻿using AllegroDrafter.Core.Proposals;
 using Autodesk.Revit.DB;
 
 namespace AllegroDrafter.Revit.Model;
@@ -110,6 +110,7 @@ internal static class DimensionReader
             sheet = sheet?.SheetNumber,
             viewportRotation = rotation.ToString(),
             buildingExtentsFeet = new { minX = Math.Round(minX, 3), maxX = Math.Round(maxX, 3), minY = Math.Round(minY, 3), maxY = Math.Round(maxY, 3) },
+            outline = new { wallsUsed = footprint.Count, enclosesTheHouse = footprint.Encloses },
             count = strings.Count,
             strings = ordered,
             notLinear = other,

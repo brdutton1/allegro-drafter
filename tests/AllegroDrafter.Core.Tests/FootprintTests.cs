@@ -65,6 +65,45 @@ public class FootprintTests
     }
 
     [Fact]
+    public void Real_model_joins_still_work_T_joints_overruns_and_small_gaps()
+    {
+        // The 40 x 30 box drawn the way real models are: the south facade as two walls where one butts
+        // into the middle of the east wall's run, the west wall running 1' past the corner, and a 9"
+        // gap at the north-east corner. An outline traced from wall ends fell apart on exactly this.
+        var walls = new List<PlanWall>
+        {
+            new("S1", 0, 0, 25, 0, 0),
+            new("S2", 25, 0, 40, 0, 0),
+            new("E", 40, -0.4, 40, 29.25, 0),   // starts below the corner, stops 9" short of it
+            new("N", 40, 30, -1, 30, 0),        // runs a foot past the west wall
+            new("W", 0, 31, 0, 0, 0),
+            new("P", 20, 0, 20, 12, 0),         // a wall stub off the facade (T-joint into S1/S2's run)
+            new("deck", 50, 5, 50, 25, 0),      // a lone deck wall
+        };
+        var fp = new Footprint(walls);
+        Assert.True(fp.Encloses);
+        Assert.True(fp.IsInside(10, 15));
+        Assert.True(fp.IsInside(35, 28));       // near the leaky corner, still inside
+        Assert.False(fp.IsInside(45, 15));      // between house and deck wall
+        Assert.Equal(Side.South, fp.FacingOf(walls[0]));
+        Assert.Equal(Side.East, fp.FacingOf(walls[2]));
+        Assert.Equal(Side.North, fp.FacingOf(walls[3]));
+        Assert.Equal(Side.West, fp.FacingOf(walls[4]));
+        Assert.Null(fp.FacingOf(walls[5]));     // inside both sides: not a facade
+        Assert.Null(fp.FacingOf(walls[6]));     // outside both sides: a deck wall
+    }
+
+    [Fact]
+    public void A_wide_gap_means_inside_cant_be_told_and_says_so()
+    {
+        // North wall missing over 10': the flood gets in, nothing is inside.
+        var walls = new List<PlanWall> { new("S", 0, 0, 40, 0, 0), new("E", 40, 0, 40, 30, 0), new("N", 40, 30, 30, 30, 0), new("W", 0, 30, 0, 0, 0) };
+        var fp = new Footprint(walls);
+        Assert.False(fp.Encloses);
+        Assert.Null(fp.FacingOf(walls[0]));
+    }
+
+    [Fact]
     public void A_wall_off_the_loop_has_no_facing()
     {
         var walls = L();

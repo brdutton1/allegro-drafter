@@ -408,8 +408,8 @@ internal static class Dimensioning
             }
         }
         if (flipped > 0) notes.Add($"{flipped} exterior wall(s) are modeled with their exterior side facing in; measured to their true outside face.");
-        if (footprint.Count > 0 && straight.Count > 0 && walls.Count(w => w.IsOrthogonal) > 0 && straight.All(s => footprint.FacingOf(new PlanWall(s.Key, s.A.X, s.A.Y, s.B.X, s.B.Y, 0)) is null))
-            notes.Add("The exterior walls don't close a loop on this level, so outside was read from how the walls were drawn. Check the strings.");
+        if (footprint.Count > 0 && !footprint.Encloses)
+            notes.Add("The exterior walls on this level don't enclose the house (a gap wider than 1'-6\"), so outside was read from how each wall was drawn. Check the strings, and the walls' Function.");
         if (curtain > 0) notes.Add($"{curtain} curtain/stacked exterior wall(s) skipped.");
         if (noFace > 0) notes.Add($"{noFace} wall(s) had no usable exterior face and were skipped.");
         if (noCenter > 0) notes.Add($"{noCenter} door/window(s) weren't located: no Center (Left/Right) reference in {string.Join(", ", missingCenter.Distinct())}. Fix the family.");
