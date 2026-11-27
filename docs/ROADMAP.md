@@ -77,6 +77,10 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 - [x] Scope (2026-11-26): no template work, nothing with view templates. Finish Drafting step, `propose_view_templates`, schedule-from-template and callout templates removed; validator refuses them; `view-templates` audit check off by default (`manual.audit.disabledChecks`)
 - [ ] Cover sheet: place the sheet index in empty space, not the drawing area's top-left
 
+## STOPPED 2026-11-27: new office template first
+Bryan: "everything we are doing here means we need a new template. We are stopping this and we will build a new template."
+The drafter waits on it. State when stopped: schedule-contents check built, installed and run on 25-0083 (all 59 openings scheduled; 4 doors with no rooms; 27 tags printing typed text instead of Type Mark). Plan dimensions paused, flood-fill outline never checked in Revit.
+
 ## Drafting engine (plan approved 2026-11-26)
 The drafter does the drafting on the job as it is, with the job's own types. Only adds; never moves the designer's annotation.
 - [ ] Spikes in Revit: core-face references for dims, real tag bounding boxes, API-created elevations/sections get no default template, dimensioning to levels
