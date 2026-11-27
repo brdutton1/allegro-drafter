@@ -58,6 +58,7 @@ internal sealed class DrafterService
     /// </summary>
     public async Task<ProposeOutcome> ProposeAsync(ProposalRequest request, bool dropEmpty = false, string? finishStep = null)
     {
+        request = Core.Drafting.PlanDimensioning.WithOfficeDefaults(request, _standards.Current?.Manual.Drafting);
         var standardsErrors = ProposalValidator.Validate(request, _standards.Current);
         if (standardsErrors.Count > 0) return new ProposeOutcome(null, standardsErrors);
 

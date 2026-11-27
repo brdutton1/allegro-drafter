@@ -77,6 +77,24 @@ public sealed class ManualSettings
 
     /// <summary>How the Finish Drafting button runs: which steps apply without a click, what the change report reads.</summary>
     public FinishDraftingSettings FinishDrafting { get; set; } = new();
+
+    /// <summary>How the office dimensions plans. Defaults are Bryan's answers of 2026-11-26.</summary>
+    public DraftingSettings Drafting { get; set; } = new();
+}
+
+public sealed class DraftingSettings
+{
+    /// <summary>Dimension type for plan strings, exactly as get_standards lists it ("Linear: 3/32\" ALLEGRO ARCH"). Null: the project default.</summary>
+    public string? PlanDimensionType { get; set; }
+
+    /// <summary>What exterior walls measure to: "finishFace" (outside of finish, office rule) or "coreFace" (face of stud).</summary>
+    public string WallsTo { get; set; } = "finishFace";
+
+    /// <summary>What doors and windows measure to: "centerline" (office rule) or "edges" (rough opening sides).</summary>
+    public string OpeningsTo { get; set; } = "centerline";
+
+    /// <summary>What interior walls measure to: "face" (the face toward the exterior wall the string starts from, office rule) or "center".</summary>
+    public string InteriorTo { get; set; } = "face";
 }
 
 public sealed class FinishDraftingSettings

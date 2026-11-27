@@ -1,4 +1,4 @@
-using AllegroDrafter.Core.Proposals;
+﻿using AllegroDrafter.Core.Proposals;
 using Autodesk.Revit.DB;
 
 namespace AllegroDrafter.Revit.Model;
@@ -239,7 +239,7 @@ internal static class ModelChecker
                         errors.Add(prefix + $"\"{plan.Name}\" already has dimensions. Adding more would double up. Set allowExisting to add anyway.");
                     if (dims.DimensionType is not null && Dimensioning.ResolveType(doc, dims.DimensionType) is null)
                         errors.Add(prefix + $"Linear dimension type '{dims.DimensionType}' isn't in this project.");
-                    var data = Dimensioning.Extract(doc, plan);
+                    var data = Dimensioning.Extract(doc, plan, dims);
                     var planned = Dimensioning.Plan(data, dims);
                     if (planned.Strings.Count == 0)
                         errors.Add(prefix + $"No dimension strings possible in \"{plan.Name}\". " + string.Join(" ", data.Notes.Concat(planned.Notes)));
@@ -285,7 +285,7 @@ internal static class ModelChecker
                 TagViewChange tag when RevitLookup.ResolveView(doc, tag.ViewName, tag.ViewType, out _) is { } view
                     => tag with { ExpectedCount = Tagging.Candidates(doc, view, tag.Category, tag.UntaggedOnly).Count },
                 DimensionViewChange dims when Dimensioning.ResolvePlan(doc, dims, out _) is { } plan
-                    => dims with { ExpectedStrings = Dimensioning.Plan(Dimensioning.Extract(doc, plan), dims).Strings.Count },
+                    => dims with { ExpectedStrings = Dimensioning.Plan(Dimensioning.Extract(doc, plan, dims), dims).Strings.Count },
                 SetTypeMarkChange mark => FixEditor.Annotate(doc, mark),
                 DeleteRoomsChange rooms => FixEditor.Annotate(doc, rooms),
                 SetWallFunctionChange wall => FixEditor.Annotate(doc, wall),

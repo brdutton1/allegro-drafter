@@ -259,6 +259,9 @@ internal static class Dimensioning
         /// <summary>Vertical edge faces of floors, decks and slabs near the view's level.</summary>
         public List<PlanEdge> Edges { get; } = new();
 
+        /// <summary>Door swings and room tag spots the interior strings keep out of.</summary>
+        public List<PlanKeepOut> KeepOuts { get; } = new();
+
         /// <summary>The model side at the top of the view on the sheet (north unless the view is rotated).</summary>
         public Side ViewTop { get; init; } = Side.North;
 
@@ -294,7 +297,7 @@ internal static class Dimensioning
         new FilteredElementCollector(doc).OfClass(typeof(DimensionType)).Cast<DimensionType>()
             .FirstOrDefault(t => $"{t.StyleType}: {t.Name}" == name && t.StyleType == DimensionStyleType.Linear);
 
-    public static Extracted Extract(Document doc, ViewPlan view)
+    public static Extracted Extract(Document doc, ViewPlan view, DimensionViewChange? change = null)
     {
         var walls = new List<PlanWall>();
         var openings = new List<PlanOpening>();
@@ -371,6 +374,27 @@ internal static class Dimensioning
             {
                 if (doc.GetElement(insertId) is not FamilyInstance fi || fi.Location is not LocationPoint lp) continue;
                 if (fi.Category?.BuiltInCategory is not (BuiltInCategory.OST_Doors or BuiltInCategory.OST_Windows)) continue;
+                var center = planWall.IsNorthSouth ? lp.Point.Y : lp.Point.X;
+                if (change?.OpeningEdges == true)
+                {
+                    // Rough opening edges: the family's Left and Right references, half the width each side of center.
+                    var left = fi.GetReferences(FamilyInstanceReferenceType.Left).FirstOrDefault();
+                    var right = fi.GetReferences(FamilyInstanceReferenceType.Right).FirstOrDefault();
+                    var width = OpeningWidth(fi);
+                    if (left is null || right is null || width is null)
+                    {
+                        noCenter++;
+                        missingCenter.Add($"{fi.Symbol?.FamilyName}: {fi.Symbol?.Name} (edges)");
+                        continue;
+                    }
+                    var hand = planWall.IsNorthSouth ? fi.HandOrientation.Y : fi.HandOrientation.X;
+                    var half = width.Value / 2 * (hand >= 0 ? 1 : -1);
+                    openings.Add(new PlanOpening($"o{fi.Id.Value}:l", key, center - half));
+                    openings.Add(new PlanOpening($"o{fi.Id.Value}:r", key, center + half));
+                    references[$"o{fi.Id.Value}:l"] = left;
+                    references[$"o{fi.Id.Value}:r"] = right;
+                    continue;
+                }
                 var centerRef = fi.GetReferences(FamilyInstanceReferenceType.CenterLeftRight).FirstOrDefault();
                 if (centerRef is null)
                 {
@@ -379,7 +403,7 @@ internal static class Dimensioning
                     continue;
                 }
                 var openingKey = $"o{fi.Id.Value}";
-                openings.Add(new PlanOpening(openingKey, key, planWall.IsNorthSouth ? lp.Point.Y : lp.Point.X));
+                openings.Add(new PlanOpening(openingKey, key, center));
                 references[openingKey] = centerRef;
             }
         }
@@ -393,6 +417,7 @@ internal static class Dimensioning
         ExtractInterior(doc, view, data);
         ExtractColumns(doc, view, data);
         ExtractFloorEdges(doc, view, data);
+        ExtractKeepOuts(doc, view, data);
         return data;
     }
 
@@ -511,13 +536,57 @@ internal static class Dimensioning
         }
     }
 
+    /// <summary>
+    /// Where interior strings shouldn't run: each door's swing (a square the door's width on both sides
+    /// of it, so either swing is covered) and each room's tag spot (existing room tags where they sit,
+    /// rooms without one at the room point, sized for a tag at this scale).
+    /// </summary>
+    private static void ExtractKeepOuts(Document doc, ViewPlan view, Extracted data)
+    {
+        var level = view.GenLevel!;
+        foreach (var door in new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_Doors).OfClass(typeof(FamilyInstance)).Cast<FamilyInstance>())
+        {
+            if (door.LevelId != level.Id || door.Location is not LocationPoint lp) continue;
+            var w = OpeningWidth(door) ?? 3.0;
+            data.KeepOuts.Add(new PlanKeepOut($"door {door.get_Parameter(BuiltInParameter.ALL_MODEL_MARK)?.AsString() ?? door.Id.Value.ToString()} swing",
+                lp.Point.X - w, lp.Point.Y - w, lp.Point.X + w, lp.Point.Y + w));
+        }
+
+        // A room tag at 1/4" is about 1" x 1/2" on paper: that much model space, scaled.
+        var halfW = 0.5 * data.Scale / 12.0;
+        var halfH = 0.25 * data.Scale / 12.0;
+        var tagged = new HashSet<long>();
+        foreach (var tag in new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_RoomTags).OfType<Autodesk.Revit.DB.Architecture.RoomTag>())
+        {
+            if (tag.TaggedLocalRoomId is { } rid && rid != ElementId.InvalidElementId) tagged.Add(rid.Value);
+            var p = tag.TagHeadPosition;
+            data.KeepOuts.Add(new PlanKeepOut($"the {tag.Room?.Name ?? "room"} tag", p.X - halfW, p.Y - halfH, p.X + halfW, p.Y + halfH));
+        }
+        foreach (var room in new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_Rooms).OfType<Autodesk.Revit.DB.Architecture.Room>())
+        {
+            if (room.LevelId != level.Id || tagged.Contains(room.Id.Value) || room.Location is not LocationPoint lp) continue;
+            data.KeepOuts.Add(new PlanKeepOut($"the {room.Name} tag spot", lp.Point.X - halfW, lp.Point.Y - halfH, lp.Point.X + halfW, lp.Point.Y + halfH));
+        }
+    }
+
+    private static double? OpeningWidth(FamilyInstance fi)
+    {
+        var p = fi.Symbol?.get_Parameter(BuiltInParameter.FAMILY_WIDTH_PARAM)
+            ?? fi.get_Parameter(BuiltInParameter.FAMILY_WIDTH_PARAM)
+            ?? fi.LookupParameter("Width") ?? fi.Symbol?.LookupParameter("Width");
+        return p is { StorageType: StorageType.Double } && p.AsDouble() > 0 ? p.AsDouble() : null;
+    }
+
     public static DimensionPlan Plan(Extracted data, DimensionViewChange change)
     {
         var basis = PlanDimensioning.ParseBasis(change.InteriorBasis);
+        var coreNote = string.Equals(change.WallsTo, "coreFace", StringComparison.OrdinalIgnoreCase)
+            ? "Face of stud references aren't checked in Revit yet; walls measure to the outside of finish." : null;
         var sides = PlanDimensioning.ResolveSides(change.Sides, data.ViewTop);
-        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides, data.Columns, data.Edges);
+        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides, data.Columns, data.Edges, data.KeepOuts);
         if (sides is not null && change.Sides!.Any(s => s is "top" or "bottom" or "left" or "right") && data.ViewTop != Side.North)
             plan = plan with { Notes = plan.Notes.Append($"This view is rotated: the top of the sheet is model {data.ViewTop.ToString().ToLowerInvariant()}.").ToList() };
+        if (coreNote is not null) plan = plan with { Notes = plan.Notes.Append(coreNote).ToList() };
         if (basis == InteriorBasis.Center && change.Strategies.Contains(PlanDimensioning.Interior))
         {
             // Centerline references need a check in Revit first (plan: spike 1). Until then the strings
@@ -530,7 +599,7 @@ internal static class Dimensioning
     /// <summary>Draws every string. A string Revit refuses is rolled back alone and reported.</summary>
     public static (List<long> Created, List<string> Notes) Draw(Document doc, ViewPlan view, DimensionViewChange change)
     {
-        var data = Extract(doc, view);
+        var data = Extract(doc, view, change);
         var plan = Plan(data, change);
         var notes = data.Notes.Concat(plan.Notes).ToList();
         DimensionType? type = null;

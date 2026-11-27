@@ -1,4 +1,4 @@
-namespace AllegroDrafter.Core.Drafting;
+﻿namespace AllegroDrafter.Core.Drafting;
 
 /// <summary>An interior wall in plan: centerline ends and thickness, in feet.</summary>
 public sealed record PlanInteriorWall(string Key, double X1, double Y1, double X2, double Y2, double Thickness)
@@ -17,6 +17,12 @@ public sealed record PlanInteriorWall(string Key, double X1, double Y1, double X
     /// <summary>The span the wall covers along its length: Y for north-south, X for east-west.</summary>
     public (double Lo, double Hi) Span => IsNorthSouth ? (MinY, MaxY) : (MinX, MaxX);
 }
+
+/// <summary>
+/// A spot an interior string should stay out of: a door's swing, a room tag. In feet, plan coordinates.
+/// The string goes through only if there's no clear spot inside the wall's length, and says so.
+/// </summary>
+public sealed record PlanKeepOut(string Label, double MinX, double MinY, double MaxX, double MaxY);
 
 /// <summary>What an interior string measures to on each interior wall.</summary>
 public enum InteriorBasis
@@ -57,8 +63,10 @@ public static class InteriorDimensionPlanner
         IReadOnlyList<PlanWall> exterior,
         InteriorBasis basis = InteriorBasis.Center,
         double clearanceFeet = 1.5,
-        double insetFeet = 1.0)
+        double insetFeet = 1.0,
+        IReadOnlyList<PlanKeepOut>? keepOuts = null)
     {
+        keepOuts ??= Array.Empty<PlanKeepOut>();
         if (clearanceFeet < 0 || insetFeet < 0) throw new ArgumentException("clearanceFeet and insetFeet can't be negative.");
         var notes = new List<string>();
         var skipped = interior.Count(w => !w.IsOrthogonal);
@@ -75,6 +83,8 @@ public static class InteriorDimensionPlanner
                 .Concat(exterior.Where(w => horizontal ? w.IsEastWest : w.IsNorthSouth).Select(w => w.FaceCoord))
                 .ToList();
             var bounding = exterior.Where(w => horizontal ? w.IsNorthSouth : w.IsEastWest).ToList();
+            // Bands the string shouldn't run in: an east-west string at y is blocked by anything spanning y.
+            var bands = keepOuts.Select(k => horizontal ? (Lo: k.MinY, Hi: k.MaxY, k.Label) : (Lo: k.MinX, Hi: k.MaxX, k.Label)).ToList();
 
             var uncovered = located.OrderBy(w => w.Span.Hi).ToList();
             var lines = new List<double>();
@@ -82,7 +92,17 @@ public static class InteriorDimensionPlanner
             {
                 var first = uncovered[0];
                 var (lo, hi) = Inset(first.Span, insetFeet);
-                var at = Clear(lo, hi, along, clearanceFeet);
+                // Best: clear of walls and of door swings and room tags. Next: clear of walls only, and say what it crosses.
+                var at = Clear(lo, hi, along, clearanceFeet, bands);
+                if (at is null)
+                {
+                    at = Clear(lo, hi, along, clearanceFeet, null);
+                    if (at is not null)
+                    {
+                        var crossed = bands.Where(b => b.Lo <= at && at <= b.Hi).Select(b => b.Label).Distinct().Take(3);
+                        notes.Add($"{Label(first)}: the string has to cross {string.Join(", ", crossed)}; nudge the tag or move the string.");
+                    }
+                }
                 if (at is null)
                 {
                     at = (lo + hi) / 2;
@@ -126,13 +146,20 @@ public static class InteriorDimensionPlanner
 
     private static bool Contains((double Lo, double Hi) span, double v) => span.Lo - Same <= v && v <= span.Hi + Same;
 
-    /// <summary>The highest point in [lo, hi] at least clearance from every wall running along the string.</summary>
-    private static double? Clear(double lo, double hi, IReadOnlyList<double> along, double clearance)
+    /// <summary>
+    /// The highest point in [lo, hi] at least clearance from every wall running along the string, and
+    /// outside every band (door swing, room tag) when bands are given.
+    /// </summary>
+    private static double? Clear(double lo, double hi, IReadOnlyList<double> along, double clearance, IReadOnlyList<(double Lo, double Hi, string Label)>? bands)
     {
-        bool Ok(double v) => along.All(a => Math.Abs(a - v) >= clearance - Same);
+        // 6" of model either side: about 1/8" on paper at 1/4" = 1'-0", room for the 3/32" dimension text.
+        const double margin = 0.5;
+        bool Ok(double v) => along.All(a => Math.Abs(a - v) >= clearance - Same)
+            && (bands is null || bands.All(b => v < b.Lo - margin + Same || v > b.Hi + margin - Same));
         if (Ok(hi)) return hi;
-        // Candidates: just below each blocked zone's lower edge and just above its upper edge, inside [lo, hi].
+        // Candidates: just outside each blocked zone, inside [lo, hi].
         var candidates = along.SelectMany(a => new[] { a - clearance, a + clearance })
+            .Concat(bands?.SelectMany(b => new[] { b.Lo - margin, b.Hi + margin }) ?? Enumerable.Empty<double>())
             .Where(v => v >= lo - Same && v <= hi + Same)
             .Select(v => Math.Clamp(v, lo, hi))
             .Append(lo)

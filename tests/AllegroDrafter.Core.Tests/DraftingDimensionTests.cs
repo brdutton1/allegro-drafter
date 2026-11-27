@@ -191,6 +191,56 @@ public class DraftingDimensionTests
         Assert.Contains(DimensionClosure.Problems(plan.Strings), p => p.Contains("doesn't end on exterior faces"));
     }
 
+    // ------------------------------------------------- keep-outs
+
+    [Fact]
+    public void Interior_strings_stay_out_of_door_swings_and_room_tags()
+    {
+        // Partition 0..30 in Y. The highest clear spot (29) is inside a room tag; 26..28 is a door swing.
+        var walls = new[] { new PlanInteriorWall("p", 15, 0, 15, 30, 0.375) };
+        var keepOuts = new[]
+        {
+            new PlanKeepOut("the KITCHEN tag", 20, 28.5, 24, 29.5),
+            new PlanKeepOut("door 101 swing", 10, 26, 13, 28),
+        };
+        var s = Assert.Single(InteriorDimensionPlanner.Plan(walls, Box(), keepOuts: keepOuts).Strings);
+        Assert.True(s.LineCoord < 26 - 0.5 + 1e-9, $"string at {s.LineCoord} runs through a swing or tag");
+        Assert.InRange(s.LineCoord, 1, 29);
+    }
+
+    [Fact]
+    public void When_nothing_is_clear_the_string_crosses_and_says_what()
+    {
+        var walls = new[] { new PlanInteriorWall("p", 15, 10, 15, 14, 0.375) };
+        var plan = InteriorDimensionPlanner.Plan(walls, Box(), keepOuts: new[] { new PlanKeepOut("the BATH tag", 0, 9, 40, 15) });
+        Assert.Single(plan.Strings);
+        Assert.Contains(plan.Notes, n => n.Contains("has to cross the BATH tag"));
+    }
+
+    // ------------------------------------------------- office settings
+
+    [Fact]
+    public void Office_settings_fill_what_the_request_left_out()
+    {
+        var office = new Core.Standards.DraftingSettings { PlanDimensionType = "Linear: 3/32\" ALLEGRO ARCH" };
+        var request = new Core.Proposals.ProposalRequest("t", "", new Core.Proposals.ProposalChange[]
+        {
+            new Core.Proposals.DimensionViewChange("MAIN FLOOR PLAN", PlanDimensioning.AllStrategies.ToList()),
+            new Core.Proposals.DimensionViewChange("UPPER", new[] { "overall" }, DimensionType: "Linear: Allegro Dim", OpeningsTo: "edges"),
+        });
+        var filled = PlanDimensioning.WithOfficeDefaults(request, office).Changes.Cast<Core.Proposals.DimensionViewChange>().ToList();
+
+        Assert.Equal("Linear: 3/32\" ALLEGRO ARCH", filled[0].DimensionType);
+        Assert.Equal(("face", "centerline", "finishFace"), (filled[0].InteriorBasis, filled[0].OpeningsTo, filled[0].WallsTo));
+        Assert.False(filled[0].OpeningEdges);
+        // What the request gave wins.
+        Assert.Equal("Linear: Allegro Dim", filled[1].DimensionType);
+        Assert.True(filled[1].OpeningEdges);
+        Assert.Contains("openings to their edges", filled[1].Describe());
+        // No settings, no change.
+        Assert.Same(request, PlanDimensioning.WithOfficeDefaults(request, null));
+    }
+
     // ------------------------------------------------- one entry point
 
     [Fact]

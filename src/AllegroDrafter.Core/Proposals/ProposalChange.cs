@@ -199,8 +199,12 @@ public sealed record DimensionViewChange(
     string? InteriorBasis = null,
     IReadOnlyList<string>? Sides = null,
     double? OffsetPaperInches = null,
-    double? StepPaperInches = null) : ProposalChange
+    double? StepPaperInches = null,
+    string? OpeningsTo = null,
+    string? WallsTo = null) : ProposalChange
 {
+    public bool OpeningEdges => string.Equals(OpeningsTo, "edges", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Office spacing (2026-11-26): first string 3/8" off the outside face on paper, 3/8" between tiers.</summary>
     public const double OfficeSpacingPaperInches = 0.375;
 
@@ -217,6 +221,8 @@ public sealed record DimensionViewChange(
         var basis = Strategies.Contains("interior") ? $", interior walls to {InteriorBasis ?? "face"}" : "";
         var sides = Sides is { Count: > 0 } ? $", {string.Join("/", Sides)} side only" : "";
         if (OffsetPaperInches is { } o) sides += $", {Paper(o)} off the wall and {Paper(StepPaperInches ?? o)} apart on paper";
+        if (OpeningEdges) sides += ", openings to their edges";
+        if (string.Equals(WallsTo, "coreFace", StringComparison.OrdinalIgnoreCase)) sides += ", walls to face of stud";
         return $"Add {count}{what} dimension string(s) to \"{ViewName}\": {string.Join(" + ", Strategies)}{sides}{basis}{(DimensionType is null ? "" : $" ({DimensionType})")}";
     }
 
@@ -227,7 +233,8 @@ public sealed record DimensionViewChange(
         && OffsetFeet == other.OffsetFeet && StepFeet == other.StepFeet && AllowExisting == other.AllowExisting
         && ExpectedStrings == other.ExpectedStrings && InteriorBasis == other.InteriorBasis && Strategies.SequenceEqual(other.Strategies)
         && (Sides ?? Array.Empty<string>()).SequenceEqual(other.Sides ?? Array.Empty<string>())
-        && OffsetPaperInches == other.OffsetPaperInches && StepPaperInches == other.StepPaperInches;
+        && OffsetPaperInches == other.OffsetPaperInches && StepPaperInches == other.StepPaperInches
+        && OpeningsTo == other.OpeningsTo && WallsTo == other.WallsTo;
 
     public override int GetHashCode() => HashCode.Combine(ViewName, ViewType, Strategies.Count);
 }

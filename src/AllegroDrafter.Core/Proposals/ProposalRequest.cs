@@ -294,9 +294,18 @@ public static class ProposalRequestParser
                 InteriorBasis: basis,
                 Sides: sides,
                 OffsetPaperInches: offsetPaper,
-                StepPaperInches: stepPaper));
+                StepPaperInches: stepPaper,
+                OpeningsTo: OneOf(Args.OptionalString(item, "openingsTo", path), path + ".openingsTo", "centerline", "edges"),
+                WallsTo: OneOf(Args.OptionalString(item, "wallsTo", path), path + ".wallsTo", "finishFace", "coreFace")));
         }
         return changes;
+    }
+
+    private static string? OneOf(string? value, string path, params string[] allowed)
+    {
+        if (value is null) return null;
+        var hit = allowed.FirstOrDefault(a => string.Equals(a, value.Trim(), StringComparison.OrdinalIgnoreCase));
+        return hit ?? throw new ToolArgumentException($"{path} must be one of: {string.Join(", ", allowed)}.");
     }
 
     private static List<ProposalChange> ParseScheduleFields(JsonObject args)

@@ -54,7 +54,8 @@ public static class PlanDimensioning
         InteriorBasis basis = InteriorBasis.Face,
         IReadOnlyCollection<Side>? onlySides = null,
         IReadOnlyList<PlanColumn>? columns = null,
-        IReadOnlyList<PlanEdge>? edges = null)
+        IReadOnlyList<PlanEdge>? edges = null,
+        IReadOnlyList<PlanKeepOut>? keepOuts = null)
     {
         var unknown = strategies.Where(s => !AllStrategies.Contains(s)).ToList();
         if (unknown.Count > 0) throw new ArgumentException($"Unknown strategy: {string.Join(", ", unknown)}. Use {string.Join(", ", AllStrategies)}.");
@@ -71,13 +72,34 @@ public static class PlanDimensioning
         }
         if (strategies.Contains(Interior))
         {
-            var inner = InteriorDimensionPlanner.Plan(interior, exterior.Where(w => w.IsOrthogonal).ToList(), basis);
+            var inner = InteriorDimensionPlanner.Plan(interior, exterior.Where(w => w.IsOrthogonal).ToList(), basis, keepOuts: keepOuts);
             strings.AddRange(inner.Strings);
             notes.AddRange(inner.Notes);
         }
         var closure = DimensionClosure.Problems(strings);
         notes.AddRange(closure.Select(p => "Check: " + p));
         return new DimensionPlan(strings, notes);
+    }
+
+    /// <summary>
+    /// Fills what a dimension request left out from the office settings (manual.drafting): dimension type,
+    /// what walls, openings and interior walls measure to. Anything the request gave wins.
+    /// </summary>
+    public static Proposals.ProposalRequest WithOfficeDefaults(Proposals.ProposalRequest request, Standards.DraftingSettings? office)
+    {
+        if (office is null || !request.Changes.OfType<Proposals.DimensionViewChange>().Any()) return request;
+        return request with
+        {
+            Changes = request.Changes.Select(c => c is Proposals.DimensionViewChange d
+                ? d with
+                {
+                    DimensionType = d.DimensionType ?? office.PlanDimensionType,
+                    InteriorBasis = d.InteriorBasis ?? office.InteriorTo,
+                    OpeningsTo = d.OpeningsTo ?? office.OpeningsTo,
+                    WallsTo = d.WallsTo ?? office.WallsTo,
+                }
+                : c).ToList(),
+        };
     }
 
     private static bool SideNote(string note) => Enum.GetNames<Side>().Any(s => note.StartsWith(s + ":"));
