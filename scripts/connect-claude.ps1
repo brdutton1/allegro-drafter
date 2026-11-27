@@ -18,7 +18,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # Find the installed bridge (newest Revit year first, unless one is given).
-$years = if ($Year) { @($Year) } else { @('2026', '2025') }
+$years = if ($Year) { @($Year) } else { @('2026') }
 $bridge = $null
 foreach ($y in $years) {
     $candidate = Join-Path $env:APPDATA "Autodesk\Revit\Addins\$y\AllegroDrafter\AllegroDrafter.Bridge.exe"

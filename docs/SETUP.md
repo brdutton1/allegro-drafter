@@ -19,7 +19,7 @@ cd allegro-drafter
 .\scripts\install.ps1
 ```
 
-It runs the tests, builds for every Revit year it finds (2025, 2026), copies the add-in into `%APPDATA%\Autodesk\Revit\Addins\<year>\`, and prints the Claude config line.
+It runs the tests, builds for Revit 2026, copies the add-in into `%APPDATA%\Autodesk\Revit\Addins\<year>\`, and prints the Claude config line.
 
 If PowerShell blocks the script: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, then run it again.
 

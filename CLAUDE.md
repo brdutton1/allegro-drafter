@@ -1,6 +1,6 @@
 # Allegro Drafter: rules for AI working on this repo
 
-AI drafting assistant for Revit 2025/2026. The designer stays in control: the AI proposes, a human approves.
+AI drafting assistant for Revit 2026. The office works in 2026 only: build and install 2026; the 2025 target stays in the project but isn't built. The designer stays in control: the AI proposes, a human approves.
 
 ## Non-negotiable
 - **No model change without approval.** Every write goes through a `ProposalChange` and `ProposalApplier`. Never add a tool that edits the model directly.
@@ -13,7 +13,6 @@ AI drafting assistant for Revit 2025/2026. The designer stays in control: the AI
 ## Build and test
 ```
 dotnet test tests/AllegroDrafter.Core.Tests
-dotnet build src/AllegroDrafter.Revit -p:RevitVersion=2025
 dotnet build src/AllegroDrafter.Revit -p:RevitVersion=2026
 ```
 Revit itself only runs on Windows. Compiling proves the API calls exist, not that they behave. Say so when reporting.

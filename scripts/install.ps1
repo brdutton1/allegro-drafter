@@ -1,14 +1,14 @@
 <#
 .SYNOPSIS
-  Builds, tests and installs Allegro Drafter into Revit 2025 and/or 2026 for the current Windows user.
+  Builds, tests and installs Allegro Drafter into Revit 2026 for the current Windows user. (Office works in 2026 only.)
 
 .EXAMPLE
-  .\scripts\install.ps1                 # every installed Revit year (2025, 2026)
-  .\scripts\install.ps1 -Years 2025     # just 2025
+  .\scripts\install.ps1                 # Revit 2026
+  .\scripts\install.ps1 -Years 2025     # 2025 only if ever needed again
   .\scripts\install.ps1 -Uninstall      # remove it
 #>
 param(
-    [string[]] $Years = @('2025', '2026'),
+    [string[]] $Years = @('2026'),
     [string] $Configuration = 'Release',
     [switch] $Uninstall,
     [switch] $SkipTests

@@ -14,8 +14,6 @@ jobs:
           dotnet-version: 8.0.x
       - name: Test core
         run: dotnet test tests/AllegroDrafter.Core.Tests --nologo
-      - name: Build add-in (Revit 2025)
-        run: dotnet build src/AllegroDrafter.Revit -c Release -p:RevitVersion=2025 --nologo
       - name: Build add-in (Revit 2026)
         run: dotnet build src/AllegroDrafter.Revit -c Release -p:RevitVersion=2026 --nologo
       - name: Build bridge
