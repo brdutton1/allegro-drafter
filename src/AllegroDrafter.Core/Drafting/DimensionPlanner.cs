@@ -1,4 +1,4 @@
-namespace AllegroDrafter.Core.Drafting;
+﻿namespace AllegroDrafter.Core.Drafting;
 
 public enum Side { North, South, East, West }
 
@@ -32,6 +32,13 @@ public sealed record PlanWall(string Key, double X1, double Y1, double X2, doubl
 
 /// <summary>A door or window in an exterior wall. Center is X for an east-west wall, Y for a north-south wall.</summary>
 public sealed record PlanOpening(string Key, string WallKey, double Center);
+
+/// <summary>
+/// A vertical edge face of a floor, deck or slab in plan, in feet. NormalAlongX: the face runs
+/// north-south and locates an X position (east-west strings); otherwise it locates Y. Span is how far
+/// the face runs along its length (Y for NormalAlongX), so the planner knows which side it's on.
+/// </summary>
+public sealed record PlanEdge(string Key, double Position, bool NormalAlongX, double SpanLo, double SpanHi);
 
 /// <summary>
 /// A column in plan (porch post, timber column), center and half its size, in feet. Strings measure
@@ -87,10 +94,12 @@ public static class DimensionPlanner
         IReadOnlyCollection<string> strategies,
         double offsetFeet = 4.0,
         double stepFeet = 2.0,
-        IReadOnlyList<PlanColumn>? columns = null)
+        IReadOnlyList<PlanColumn>? columns = null,
+        IReadOnlyList<PlanEdge>? edges = null)
     {
         var notes = new List<string>();
         columns ??= Array.Empty<PlanColumn>();
+        edges ??= Array.Empty<PlanEdge>();
         var unknown = strategies.Where(s => !Strategies.Contains(s)).ToList();
         if (unknown.Count > 0) throw new ArgumentException($"Unknown strategy: {string.Join(", ", unknown)}. Use {string.Join(", ", Strategies)}.");
         if (offsetFeet <= 0 || stepFeet <= 0) throw new ArgumentException("offsetFeet and stepFeet must be positive.");
@@ -154,13 +163,20 @@ public static class DimensionPlanner
         {
             var horizontal = side is Side.North or Side.South;
             var sideColumns = columnsBySide.TryGetValue(side, out var sc) ? sc : new List<PlanColumn>();
-            // The strings clear everything on this side: the outermost wall face or column, whichever is further out.
+            // Floor, deck and slab edges on this side: the faces across the string (they locate along it) on any
+            // part of a floor that runs out past the house here, and the faces along it that the strings must clear.
+            var faceHere = side switch { Side.North => faceNorth, Side.South => faceSouth, Side.East => faceEast, _ => faceWest };
+            bool Beyond(double v) => side is Side.North or Side.East ? v > faceHere + Same : v < faceHere - Same;
+            var sideEdges = edges.Where(e => e.NormalAlongX == horizontal && (Beyond(e.SpanHi) || Beyond(e.SpanLo))).ToList();
+            var clearEdges = edges.Where(e => e.NormalAlongX != horizontal && Beyond(e.Position)).Select(e => e.Position);
+
+            // The strings clear everything on this side: the outermost wall face, column or floor edge.
             var extreme = side switch
             {
-                Side.North => sideColumns.Select(c => c.Y + c.HalfSize).Append(faceNorth).Max(),
-                Side.South => sideColumns.Select(c => c.Y - c.HalfSize).Append(faceSouth).Min(),
-                Side.East => sideColumns.Select(c => c.X + c.HalfSize).Append(faceEast).Max(),
-                _ => sideColumns.Select(c => c.X - c.HalfSize).Append(faceWest).Min(),
+                Side.North => sideColumns.Select(c => c.Y + c.HalfSize).Concat(clearEdges).Append(faceNorth).Max(),
+                Side.South => sideColumns.Select(c => c.Y - c.HalfSize).Concat(clearEdges).Append(faceSouth).Min(),
+                Side.East => sideColumns.Select(c => c.X + c.HalfSize).Concat(clearEdges).Append(faceEast).Max(),
+                _ => sideColumns.Select(c => c.X - c.HalfSize).Concat(clearEdges).Append(faceWest).Min(),
             };
             // Walls perpendicular to this side's dimension line give the faces we measure between.
             var perpendicular = horizontal ? northSouth : eastWest;
@@ -200,7 +216,16 @@ public static class DimensionPlanner
                 perpendicular.MaxBy(w => w.FaceCoord)!,
             };
 
-            var overallPositions = Dedupe(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord))).Select(r => r.Position).ToList();
+            // Every tier on this side closes to the same two ends: the outermost wall face or floor edge each way
+            // (a deck running past the house makes the overall deck edge to deck edge, the way the office draws it).
+            var lowEnd = sideEdges.Where(e => e.Position < outer[0].FaceCoord - Same).MinBy(e => e.Position) is { } le
+                ? new DimensionRef(le.Key, le.Position) : new DimensionRef(outer[0].Key, outer[0].FaceCoord);
+            var highEnd = sideEdges.Where(e => e.Position > outer[1].FaceCoord + Same).MaxBy(e => e.Position) is { } he
+                ? new DimensionRef(he.Key, he.Position) : new DimensionRef(outer[1].Key, outer[1].FaceCoord);
+            var ends = new[] { lowEnd, highEnd };
+            var outerFaces = outer.Select(w => new DimensionRef(w.Key, w.FaceCoord));
+
+            var overallPositions = Dedupe(ends).Select(r => r.Position).ToList();
             var tier = 0;
             foreach (var strategy in Strategies.Where(strategies.Contains))
             {
@@ -209,16 +234,21 @@ public static class DimensionPlanner
                 {
                     case Columns:
                         if (sideColumns.Count == 0) continue; // no posts on this side: no column string
-                        refs.AddRange(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord)));
+                        refs.AddRange(ends);
+                        refs.AddRange(outerFaces);
                         refs.AddRange(sideColumns.Select(c => horizontal ? new DimensionRef(c.KeyX, c.X) : new DimensionRef(c.KeyY, c.Y)));
                         break;
 
                     case Overall:
-                        refs.AddRange(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord)));
+                        refs.AddRange(ends);
                         break;
 
                     case Walls:
-                        refs.AddRange(outer.Concat(nearSide).Select(w => new DimensionRef(w.Key, w.FaceCoord)));
+                        refs.AddRange(ends);
+                        refs.AddRange(outerFaces);
+                        refs.AddRange(nearSide.Select(w => new DimensionRef(w.Key, w.FaceCoord)));
+                        // Where the deck or slab steps along this side, that's a jog too.
+                        refs.AddRange(sideEdges.Select(e => new DimensionRef(e.Key, e.Position)));
                         break;
 
                     case Openings:
@@ -226,7 +256,8 @@ public static class DimensionPlanner
                         var facing = facade.Select(w => w.Key).ToHashSet();
                         var inSide = openings.Where(o => facing.Contains(o.WallKey) && wallsByKey.ContainsKey(o.WallKey)).ToList();
                         if (inSide.Count == 0) continue; // Nothing to locate: no opening string on this side.
-                        refs.AddRange(outer.Select(w => new DimensionRef(w.Key, w.FaceCoord)));
+                        refs.AddRange(ends);
+                        refs.AddRange(outerFaces);
                         refs.AddRange(inSide.Select(o => new DimensionRef(o.Key, o.Center)));
                         break;
                 }

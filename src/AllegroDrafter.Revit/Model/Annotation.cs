@@ -256,6 +256,9 @@ internal static class Dimensioning
         /// <summary>Structural and architectural columns in the view (porch posts, timber columns).</summary>
         public List<PlanColumn> Columns { get; } = new();
 
+        /// <summary>Vertical edge faces of floors, decks and slabs near the view's level.</summary>
+        public List<PlanEdge> Edges { get; } = new();
+
         /// <summary>The model side at the top of the view on the sheet (north unless the view is rotated).</summary>
         public Side ViewTop { get; init; } = Side.North;
 
@@ -389,6 +392,7 @@ internal static class Dimensioning
         var data = new Extracted(walls, openings, references, notes, level.Elevation) { ViewTop = SideOf(view.UpDirection), Scale = view.Scale > 0 ? view.Scale : 48 };
         ExtractInterior(doc, view, data);
         ExtractColumns(doc, view, data);
+        ExtractFloorEdges(doc, view, data);
         return data;
     }
 
@@ -464,11 +468,54 @@ internal static class Dimensioning
         if (noCenter > 0) data.Notes.Add($"{noCenter} column(s) have no center references in their family and weren't located. Fix the family.");
     }
 
+    /// <summary>
+    /// Edge faces of floors, decks and slabs (Floors category) visible in the view and within 4' of its
+    /// level: the vertical, square-to-the-grid faces of each floor's solid, with the references Revit
+    /// dimensions to. The planner keeps only the edges that run out past the house.
+    /// </summary>
+    private static void ExtractFloorEdges(Document doc, ViewPlan view, Extracted data)
+    {
+        var levelZ = view.GenLevel!.Elevation;
+        var options = new Options { ComputeReferences = true, View = view };
+        foreach (var floor in new FilteredElementCollector(doc, view.Id).OfCategory(BuiltInCategory.OST_Floors).WhereElementIsNotElementType())
+        {
+            if (doc.GetElement(floor.LevelId) is Level lv && Math.Abs(lv.Elevation - levelZ) > 4.0) continue;
+            var n = 0;
+            foreach (var solid in Solids(floor.get_Geometry(options)))
+            {
+                foreach (Face f in solid.Faces)
+                {
+                    if (f is not PlanarFace pf || pf.Reference is null || Math.Abs(pf.FaceNormal.Z) > 0.01) continue;
+                    var alongX = Math.Abs(pf.FaceNormal.X) > 0.999;
+                    var alongY = Math.Abs(pf.FaceNormal.Y) > 0.999;
+                    if (!alongX && !alongY) continue;
+                    var points = pf.EdgeLoops.Cast<EdgeArray>().SelectMany(loop => loop.Cast<Edge>()).SelectMany(e => e.Tessellate()).ToList();
+                    if (points.Count == 0) continue;
+                    var (lo, hi) = alongX ? (points.Min(p => p.Y), points.Max(p => p.Y)) : (points.Min(p => p.X), points.Max(p => p.X));
+                    var key = $"f{floor.Id.Value}:{n++}";
+                    data.Edges.Add(new PlanEdge(key, alongX ? pf.Origin.X : pf.Origin.Y, alongX, lo, hi));
+                    data.References[key] = pf.Reference;
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<Solid> Solids(GeometryElement? geometry)
+    {
+        if (geometry is null) yield break;
+        foreach (var obj in geometry)
+        {
+            if (obj is Solid { Volume: > 0 } s) yield return s;
+            else if (obj is GeometryInstance gi)
+                foreach (var inner in Solids(gi.GetInstanceGeometry())) yield return inner;
+        }
+    }
+
     public static DimensionPlan Plan(Extracted data, DimensionViewChange change)
     {
         var basis = PlanDimensioning.ParseBasis(change.InteriorBasis);
         var sides = PlanDimensioning.ResolveSides(change.Sides, data.ViewTop);
-        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides, data.Columns);
+        var plan = PlanDimensioning.Plan(data.Walls, data.Openings, data.Interior, change.Strategies.ToList(), change.OffsetAt(data.Scale), change.StepAt(data.Scale), basis, sides, data.Columns, data.Edges);
         if (sides is not null && change.Sides!.Any(s => s is "top" or "bottom" or "left" or "right") && data.ViewTop != Side.North)
             plan = plan with { Notes = plan.Notes.Append($"This view is rotated: the top of the sheet is model {data.ViewTop.ToString().ToLowerInvariant()}.").ToList() };
         if (basis == InteriorBasis.Center && change.Strategies.Contains(PlanDimensioning.Interior))

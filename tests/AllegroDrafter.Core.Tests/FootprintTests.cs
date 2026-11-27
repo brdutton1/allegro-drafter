@@ -126,6 +126,54 @@ public class FootprintTests
         Assert.Contains(plan.Strings, s => s.Side == Side.East && s.Refs.Any(r => r.Key == "corner:y"));
     }
 
+    // ------------------------------------------------------ deck/slab edges
+
+    // The porch deck: a floor from x = -2 to 66, y = 30 to 40 (runs 2' past the house each way).
+    private static List<PlanEdge> Deck() => new()
+    {
+        new("deckW", -2, true, 30, 40),   // west end face (locates X)
+        new("deckE", 66, true, 30, 40),   // east end face
+        new("deckN", 40, false, -2, 66),  // north edge face (locates Y)
+        new("deckS", 30, false, -2, 66),  // where it meets the house
+        new("slabW", -0.5, true, 0, 30),  // the house slab, flush with the walls: not beyond, ignored
+    };
+
+    [Fact]
+    public void Deck_edges_close_the_north_strings_and_the_strings_clear_the_deck()
+    {
+        var plan = DimensionPlanner.Plan(House(), Array.Empty<PlanOpening>(), DimensionPlanner.Strategies.ToList(), 1.5, 1.5, PorchPosts(), Deck());
+        var north = plan.Strings.Where(s => s.Side == Side.North).OrderBy(s => s.LineCoord).ToList();
+
+        // Overall runs deck edge to deck edge (64' house + 2' each way), like the office's 25-0083 strings.
+        var overall = north.Single(s => s.Strategy == DimensionPlanner.Overall);
+        Assert.Equal(new[] { ("deckW", -2.0), ("deckE", 66.0) }, overall.Refs.Select(r => (r.Key, r.Position)));
+        // Posts: deck edges, house corners and post centers on one string.
+        var posts = north.First();
+        Assert.Equal(DimensionPlanner.Columns, posts.Strategy);
+        Assert.Equal(new[] { "deckW", "W", "c1:x", "c2:x", "c3:x", "c4:x", "E", "deckE" }, posts.Refs.Select(r => r.Key));
+        // Clear of the deck's north edge (y = 40), not the house or the posts.
+        Assert.Equal(40 + 1.5, posts.LineCoord, 9);
+        // The jog string picks up the deck stepping out past the house.
+        Assert.Contains(north, s => s.Strategy == DimensionPlanner.Walls && s.Refs.Any(r => r.Key == "deckW"));
+        Assert.Empty(DimensionClosure.Problems(plan.Strings));
+    }
+
+    [Fact]
+    public void Sides_the_deck_doesnt_reach_ignore_it()
+    {
+        var plan = DimensionPlanner.Plan(House(), Array.Empty<PlanOpening>(), DimensionPlanner.Strategies.ToList(), 1.5, 1.5, null, Deck());
+        var south = plan.Strings.Single(s => s.Side == Side.South && s.Strategy == DimensionPlanner.Overall);
+        Assert.Equal(new[] { "W", "E" }, south.Refs.Select(r => r.Key));
+        Assert.Equal(-0.5 - 1.5, south.LineCoord, 9);
+        // East side: the deck runs 2' past the house face there, so the east strings reach its north edge and clear it.
+        var east = plan.Strings.Single(s => s.Side == Side.East && s.Strategy == DimensionPlanner.Overall);
+        Assert.Equal("deckN", east.Refs.Last().Key);
+        // First east string clears the deck's east end (x = 66); the overall is a tier out past the jog string.
+        Assert.Equal(66 + 1.5, plan.Strings.Where(s => s.Side == Side.East).Min(s => s.LineCoord), 9);
+        Assert.Equal(66 + 3.0, east.LineCoord, 9);
+        Assert.DoesNotContain(plan.Strings, s => s.Refs.Any(r => r.Key == "slabW"));
+    }
+
     // -------------------------------------------------------------- spacing
 
     [Fact]

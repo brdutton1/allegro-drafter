@@ -53,7 +53,8 @@ public static class PlanDimensioning
         double stepFeet = 2.0,
         InteriorBasis basis = InteriorBasis.Face,
         IReadOnlyCollection<Side>? onlySides = null,
-        IReadOnlyList<PlanColumn>? columns = null)
+        IReadOnlyList<PlanColumn>? columns = null,
+        IReadOnlyList<PlanEdge>? edges = null)
     {
         var unknown = strategies.Where(s => !AllStrategies.Contains(s)).ToList();
         if (unknown.Count > 0) throw new ArgumentException($"Unknown strategy: {string.Join(", ", unknown)}. Use {string.Join(", ", AllStrategies)}.");
@@ -63,7 +64,7 @@ public static class PlanDimensioning
         var exteriorTiers = strategies.Where(s => s != Interior).ToList();
         if (exteriorTiers.Count > 0)
         {
-            var ext = DimensionPlanner.Plan(exterior, openings, exteriorTiers, offsetFeet, stepFeet, columns);
+            var ext = DimensionPlanner.Plan(exterior, openings, exteriorTiers, offsetFeet, stepFeet, columns, edges);
             // Tiers are spaced per side, so leaving sides out doesn't move the ones kept.
             strings.AddRange(onlySides is null ? ext.Strings : ext.Strings.Where(s => onlySides.Contains(s.Side)));
             notes.AddRange(onlySides is null ? ext.Notes : ext.Notes.Where(n => !SideNote(n) || onlySides.Any(s => n.StartsWith(s + ":"))));
