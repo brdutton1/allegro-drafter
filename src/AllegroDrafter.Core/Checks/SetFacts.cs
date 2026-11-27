@@ -19,12 +19,19 @@ public sealed class SetFacts
     public List<Finishing.DoorGeometry> DoorGeometry { get; set; } = new();
     public List<AnnotationTypeUsage> AnnotationTypes { get; set; } = new();
     public List<TextFact> Texts { get; set; } = new();
+    public List<PlanStringFact> PlanStrings { get; set; } = new();
 
     /// <summary>Things the reader couldn't get, reported so a silent gap doesn't look like a pass.</summary>
     public List<string> ReadWarnings { get; set; } = new();
 }
 
 public sealed record SheetFact(string Number, string Name, int PlacedItemCount, bool IsPlaceholder = false);
+
+/// <summary>
+/// An exterior dimension string on a placed floor plan: the side of the building it's on (by the plan's
+/// outline) and where its first and last witness lines fall along it, in model feet.
+/// </summary>
+public sealed record PlanStringFact(string ViewName, string Side, double Lo, double Hi, int Segments, long ElementId);
 
 /// <summary>A view placed on at least one sheet.</summary>
 public sealed record ViewFact(string Name, string ViewType, int? ScaleDenominator, string? Template, IReadOnlyList<string> OnSheets);

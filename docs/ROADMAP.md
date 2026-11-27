@@ -80,7 +80,9 @@ Research behind it: [research/buildable-plan-sets.md](research/buildable-plan-se
 ## Drafting engine (plan approved 2026-11-26)
 The drafter does the drafting on the job as it is, with the job's own types. Only adds; never moves the designer's annotation.
 - [ ] Spikes in Revit: core-face references for dims, real tag bounding boxes, API-created elevations/sections get no default template, dimensioning to levels
-- [ ] Phase 1: floor plan dims. Side by exterior face normal (L/U/T plans), face of stud or finish face, interior dims locating every wall, closure check, foundation plans
+- [x] Phase 1 rules built (not yet proven in Revit): outside read from the plan's outline (flipped walls), Bryan's rules from `read_dimensions` (outside of finish, opening centerlines, interior to the face toward the starting exterior wall, 3/8" paper spacing, order columns/openings/walls/overall), porch columns, deck/floor/slab edges, interior strings clear of swings and room tags, `manual.drafting` settings, one side only, foundation walls, `dimension-closure` audit check
+- [ ] Phase 1 proven on 25-0083: reader puts Bryan's strings on the right sides; one cleared side redrawn and approved
+- [ ] Face of stud references (spike 1) if the office ever wants it
 - [ ] Phase 2: tags that don't collide (measured tag sizes, greedy layout, leaders as fallback)
 - [ ] Phase 3: `schedule-contents` check with a fix per finding
 - [ ] Phase 4: exterior elevations created (FRONT/REAR/LEFT/RIGHT), tagged, height strings, roof pitch, placed on A2/A3

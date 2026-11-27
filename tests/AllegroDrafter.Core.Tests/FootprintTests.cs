@@ -174,6 +174,44 @@ public class FootprintTests
         Assert.DoesNotContain(plan.Strings, s => s.Refs.Any(r => r.Key == "slabW"));
     }
 
+    // ------------------------------------------------------ closure audit
+
+    private static Checks.CheckResult Closure(params Checks.PlanStringFact[] strings)
+    {
+        var facts = new Checks.SetFacts();
+        facts.PlanStrings.AddRange(strings);
+        return Checks.SetAuditor.Run(facts, null, null, new[] { "dimension-closure" }).Checks.Single();
+    }
+
+    [Fact]
+    public void Tiers_that_close_to_the_overall_pass()
+    {
+        var r = Closure(
+            new("MAIN FLOOR PLAN", "east", 15.2, 112.2, 1, 1),   // overall
+            new("MAIN FLOOR PLAN", "east", 15.2, 112.2, 6, 2),   // walls
+            new("MAIN FLOOR PLAN", "east", 15.2, 112.2, 14, 3),  // openings
+            new("MAIN FLOOR PLAN", "east", 40, 52, 2, 4));       // a short local string: left alone
+        Assert.Equal(Checks.CheckStatus.Pass, r.Status);
+    }
+
+    [Fact]
+    public void A_tier_that_stops_short_is_warned_with_how_far()
+    {
+        var r = Closure(
+            new("MAIN FLOOR PLAN", "north", -7.36, 66.14, 1, 1),
+            new("MAIN FLOOR PLAN", "north", -7.36, 63.64, 5, 5182721));
+        Assert.Equal(Checks.CheckStatus.Warn, r.Status);
+        var f = Assert.Single(r.Findings);
+        Assert.Equal(5182721, f.ElementId);
+        Assert.Contains("north side: a 5-segment string ends 2'-6\" short of the overall", f.Message);
+    }
+
+    [Fact]
+    public void No_strings_skips()
+    {
+        Assert.Equal(Checks.CheckStatus.Skip, Closure().Status);
+    }
+
     // -------------------------------------------------------------- spacing
 
     [Fact]

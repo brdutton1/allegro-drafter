@@ -43,7 +43,57 @@ internal static class FactsReader
         ReadLegends(doc, facts, placement);
         ReadWalls(doc, facts);
         ReadAnnotation(doc, facts, shownViews, sheetById);
+        ReadPlanStrings(doc, facts, placedViews);
         return facts;
+    }
+
+    /// <summary>
+    /// Exterior dimension strings on placed floor plans, for the closure check: the side each is on
+    /// (by the plan's outline on the view's level) and where its first and last witness lines fall.
+    /// </summary>
+    private static void ReadPlanStrings(Document doc, SetFacts facts, List<View> placedViews)
+    {
+        foreach (var view in placedViews.OfType<ViewPlan>().Where(v => v.ViewType == ViewType.FloorPlan && v.GenLevel is not null))
+        {
+            var level = view.GenLevel!;
+            var footprint = new Core.Drafting.Footprint(new FilteredElementCollector(doc, view.Id).OfClass(typeof(Wall)).Cast<Wall>()
+                .Where(w => w.LevelId == level.Id && w.WallType.Function is WallFunction.Exterior or WallFunction.Foundation)
+                .Select(w => w.Location is LocationCurve { Curve: Line l } ? l : null).Where(l => l is not null)
+                .Select((l, i) => new Core.Drafting.PlanWall($"w{i}", l!.GetEndPoint(0).X, l.GetEndPoint(0).Y, l.GetEndPoint(1).X, l.GetEndPoint(1).Y, 0)));
+            if (footprint.Count == 0) continue;
+
+            foreach (var d in new FilteredElementCollector(doc, view.Id).OfClass(typeof(Dimension)).Cast<Dimension>().Where(d => d.OwnerViewId == view.Id))
+            {
+                if (d.Curve is not Line line) continue;
+                var horizontal = Math.Abs(line.Direction.Y) < 0.01;
+                if (!horizontal && Math.Abs(line.Direction.X) >= 0.01) continue;
+                // Witness line positions along the string: each segment's origin plus or minus half its value.
+                var ends = new List<double>();
+                XYZ mid;
+                if (d.NumberOfSegments > 0)
+                {
+                    var segs = d.Segments.Cast<DimensionSegment>().Where(s => s.Value is not null).ToList();
+                    if (segs.Count == 0) continue;
+                    foreach (var s in segs)
+                    {
+                        var at = horizontal ? s.Origin.X : s.Origin.Y;
+                        ends.Add(at - s.Value!.Value / 2);
+                        ends.Add(at + s.Value!.Value / 2);
+                    }
+                    mid = segs.Select(s => s.Origin).Aggregate(XYZ.Zero, (a, p) => a + p) / segs.Count;
+                }
+                else
+                {
+                    if (d.Value is not double v || d.Origin is null) continue;
+                    var at = horizontal ? d.Origin.X : d.Origin.Y;
+                    ends.Add(at - v / 2);
+                    ends.Add(at + v / 2);
+                    mid = d.Origin;
+                }
+                if (footprint.SideOf(mid.X, mid.Y, checkNorthSouth: horizontal) is not { } side) continue; // interior or open both ways
+                facts.PlanStrings.Add(new PlanStringFact(view.Name, side.ToString().ToLowerInvariant(), ends.Min(), ends.Max(), Math.Max(1, d.NumberOfSegments), d.Id.Value));
+            }
+        }
     }
 
     private static void Show(Dictionary<ElementId, (View View, List<string> Sheets)> map, View view, List<string> sheets)

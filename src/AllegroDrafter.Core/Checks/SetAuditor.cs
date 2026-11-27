@@ -50,6 +50,7 @@ public static class SetAuditor
         new("rooms", "Rooms are placed, named and numbered", Rooms),
         new("door-rooms", "Every door is next to a room", DoorRooms),
         new("view-templates", "Placed views use office view templates", ViewTemplates),
+        new("dimension-closure", "Exterior dimension strings close to the overall", DimensionClosureCheck),
         new("egress", "Every bedroom has an egress window (IRC R310)", Egress),
         new("tempered", "Glazing that needs tempering is marked (IRC R308.4)", Tempered),
         new("references", "No hand-typed detail references", References),
@@ -85,7 +86,7 @@ public static class SetAuditor
 
         var notes = new List<string>(facts.ReadWarnings)
         {
-            "This audit reads model data only. It does not check dimension strings, tag label text, stair glazing (R308.4.6) or structural content yet.",
+            "This audit reads model data only. It checks that exterior plan strings close to their overall, but not interior dimensions, tag label text, stair glazing (R308.4.6) or structural content yet.",
         };
         return new AuditReport(new AuditSummary(verdict, pass, warn, fail, skip), results, notes);
     }
@@ -441,6 +442,36 @@ public static class SetAuditor
         }
         var count = c.Facts.PlacedViews.Count(v => required.Contains(v.ViewType));
         return Make(c, "view-templates", f, $"All {count} placed views that need one use an office view template.");
+    }
+
+    /// <summary>
+    /// On each side of each placed floor plan, the widest string is the overall. Every other string that
+    /// spans most of the side (the openings and walls tiers) must start and end where the overall does,
+    /// so a builder adding up any tier gets the overall. Short local strings (a porch, a bay) are left
+    /// alone. A warning, not a failure: the designer may close a tier to something else on purpose.
+    /// </summary>
+    private static CheckResult DimensionClosureCheck(Ctx c)
+    {
+        if (c.Facts.PlanStrings.Count == 0) return Skip("dimension-closure", "No exterior dimension strings were found on placed floor plans.");
+        const double tol = 1.0 / 192; // 1/16"
+        var f = new List<Finding>();
+        foreach (var group in c.Facts.PlanStrings.GroupBy(s => (s.ViewName, s.Side)).OrderBy(g => g.Key.ViewName).ThenBy(g => g.Key.Side))
+        {
+            var overall = group.MaxBy(s => s.Hi - s.Lo)!;
+            var span = overall.Hi - overall.Lo;
+            foreach (var s in group.Where(s => s != overall && s.Hi - s.Lo >= 0.6 * span).OrderBy(s => s.Lo))
+            {
+                var startOff = s.Lo - overall.Lo;
+                var endOff = overall.Hi - s.Hi;
+                if (Math.Abs(startOff) <= tol && Math.Abs(endOff) <= tol) continue;
+                var parts = new List<string>();
+                if (Math.Abs(startOff) > tol) parts.Add($"starts {Drafting.DimensionClosure.Feet(Math.Abs(startOff))} {(startOff > 0 ? "inside" : "outside")} the overall");
+                if (Math.Abs(endOff) > tol) parts.Add($"ends {Drafting.DimensionClosure.Feet(Math.Abs(endOff))} {(endOff > 0 ? "short of" : "past")} the overall");
+                f.Add(new(Severity.Warn, $"{group.Key.ViewName}, {group.Key.Side} side: a {s.Segments}-segment string {string.Join(" and ", parts)} ({Drafting.DimensionClosure.Feet(span)}). It won't add up to the overall.", s.ElementId));
+            }
+        }
+        var views = c.Facts.PlanStrings.Select(s => s.ViewName).Distinct().Count();
+        return Make(c, "dimension-closure", f, $"Every exterior tier closes to its overall on {Plural(views, "floor plan")}.");
     }
 
     private static CheckResult Egress(Ctx c)

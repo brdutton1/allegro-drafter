@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using AllegroDrafter.Core.Checks;
 using AllegroDrafter.Core.Mcp;
 using AllegroDrafter.Core.Proposals;
@@ -868,7 +868,7 @@ public class SetAuditorTests
         Assert.Equal(SetAuditor.CheckIds.Count, SetAuditor.Run(new SetFacts(), new AuditSettings { DisabledChecks = new() }).Checks.Count);
         Assert.Equal(report.Checks.Count, report.Summary.Pass + report.Summary.Warn + report.Summary.Fail + report.Summary.Skip);
         Assert.StartsWith("Not ready to issue.", report.Summary.Verdict);
-        Assert.Contains(report.Notes, n => n.Contains("does not check dimension strings"));
+        Assert.Contains(report.Notes, n => n.Contains("exterior plan strings close to their overall"));
     }
 
     [Fact]

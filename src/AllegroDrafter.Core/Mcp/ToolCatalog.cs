@@ -151,7 +151,7 @@ public static class ToolCatalog
             "Read-only punch list before issue. Checks size-code Type Marks against door/window sizes, operation codes, door/window schedules (Type Mark, Count, swing, tempered, egress), tags, wall legend vs modeled walls, sheet numbers and index, view scales, text heights (1/8\" min), rooms, view templates, bedroom egress (R310), tempered glazing candidates (R308.4), hand-typed detail references and the cover sheet. Returns pass/warn/fail per check with element ids. Changes nothing. Rules come from get_standards manual.audit.",
             """
             { "type": "object", "properties": {
-                "checks": { "type": "array", "items": { "type": "string", "enum": ["type-marks","operation-codes","schedules","opening-parameters","tags","wall-function","wall-legend","sheets","view-scales","text-heights","rooms","door-rooms","view-templates","egress","tempered","references","cover-sheet"] },
+                "checks": { "type": "array", "items": { "type": "string", "enum": ["type-marks","operation-codes","schedules","opening-parameters","tags","wall-function","wall-legend","sheets","view-scales","text-heights","rooms","door-rooms","view-templates","dimension-closure","egress","tempered","references","cover-sheet"] },
                             "description": "Optional. Run only these checks. Default: all." } },
               "additionalProperties": false }
             """, ReadOnly: true),
