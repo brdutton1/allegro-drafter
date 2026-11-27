@@ -37,7 +37,7 @@ internal static class FactsReader
         ReadSheets(facts, sheets, placement);
         ReadViews(doc, facts, placedViews, placement);
         ReadSchedules(doc, facts, placement);
-        var tagged = ReadTags(doc, shownViews);
+        var tagged = ReadTags(doc, shownViews, facts);
         ReadOpenings(doc, facts, settings, tagged);
         ReadRooms(doc, facts, settings);
         ReadLegends(doc, facts, placement);
@@ -142,17 +142,47 @@ internal static class FactsReader
                 fields,
                 sortFields,
                 placement.TryGetValue(s.Id, out var on) ? on : new List<string>(),
-                firstCounts));
+                firstCounts,
+                RowElements(doc, s, d)));
         }
     }
 
-    /// <summary>Element id to (tagged on a shown plan, tagged on a shown elevation).</summary>
-    private static Dictionary<ElementId, (bool Plan, bool Elevation)> ReadTags(Document doc, Dictionary<ElementId, (View View, List<string> Sheets)> shownViews)
+    /// <summary>
+    /// The elements a door or window schedule actually lists (after its filters and phase), so the audit
+    /// can catch one that's dropped. Null for other schedules, or if Revit won't say.
+    /// </summary>
+    private static IReadOnlyList<long>? RowElements(Document doc, ViewSchedule s, ScheduleDefinition d)
+    {
+        if (d.IsKeySchedule) return null;
+        if (CategoryKey(doc, d.CategoryId) is not ("doors" or "windows")) return null;
+        try
+        {
+            return new FilteredElementCollector(doc, s.Id).WhereElementIsNotElementType().ToElementIds().Select(id => id.Value).ToList();
+        }
+        catch (Autodesk.Revit.Exceptions.ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Element id to (tagged on a shown plan, tagged on a shown elevation). Also records what door and window tags print.</summary>
+    private static Dictionary<ElementId, (bool Plan, bool Elevation)> ReadTags(Document doc, Dictionary<ElementId, (View View, List<string> Sheets)> shownViews, SetFacts? facts = null)
     {
         var result = new Dictionary<ElementId, (bool Plan, bool Elevation)>();
         foreach (var tag in new FilteredElementCollector(doc).OfClass(typeof(IndependentTag)).Cast<IndependentTag>())
         {
             if (!shownViews.TryGetValue(tag.OwnerViewId, out var shown)) continue;
+            if (facts is not null)
+            {
+                foreach (var id in tag.GetTaggedLocalElementIds())
+                {
+                    var bic = doc.GetElement(id)?.Category?.BuiltInCategory;
+                    if (bic is not (BuiltInCategory.OST_Doors or BuiltInCategory.OST_Windows)) continue;
+                    string text;
+                    try { text = tag.TagText ?? ""; } catch { continue; } // a tag Revit can't read text for
+                    facts.TagTexts.Add(new TagTextFact(tag.Id.Value, id.Value, bic == BuiltInCategory.OST_Doors ? "doors" : "windows", shown.View.Name, text));
+                }
+            }
             var isPlan = PlanTypes.Contains(shown.View.ViewType);
             var isElevation = shown.View.ViewType == ViewType.Elevation;
             if (!isPlan && !isElevation) continue;

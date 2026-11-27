@@ -40,6 +40,7 @@ public static class SetAuditor
         new("type-marks", "Size codes match the door and window sizes", TypeMarks),
         new("operation-codes", "Operation codes are office codes, no duplicate Type Marks", OperationCodes),
         new("schedules", "Door and window schedules report from Type Mark", Schedules),
+        new("schedule-contents", "Schedules list every door and window, and tags match the rows", ScheduleContents),
         new("opening-parameters", "Doors and windows carry swing, tempered and egress values", OpeningParameters),
         new("tags", "Every door and window is tagged on a sheet", Tags),
         new("wall-function", "Wall types have the right Function (interior vs exterior)", WallFunction),
@@ -227,13 +228,89 @@ public static class SetAuditor
 
             var severity = blankFails ? Severity.Fail : Severity.Warn;
             var blank = openings.Where(o => o.HasParameter(parameter) && string.IsNullOrWhiteSpace(o.Value(parameter))).ToList();
-            if (blank.Count > 1 && blank.Count == openings.Count)
+            // Each blank carries its fix when a rule can give one: the swing from the door's hand and facing,
+            // Tempered = Yes on a glass door. Target is the parameter, Suggestion the value (propose_parameter_values).
+            var fixes = blank.ToDictionary(o => o.ElementId, o => BlankFix(c, o, parameter));
+            if (blank.Count > 1 && blank.Count == openings.Count && fixes.Values.All(v => v is null))
+            {
                 blanks.Add(new(severity, $"\"{parameter}\" is blank on all {openings.Count} {category}."));
-            else
-                blanks.AddRange(blank.Select(o => new Finding(severity, $"{o.Label}: \"{parameter}\" is not set.", o.ElementId)));
+                continue;
+            }
+            foreach (var o in blank)
+            {
+                var fix = fixes[o.ElementId];
+                blanks.Add(new Finding(severity, $"{o.Label}: \"{parameter}\" is not set." + (fix is null ? "" : $" Rule says: {fix}."), o.ElementId,
+                    Target: fix is null ? null : parameter, Suggestion: fix));
+            }
         }
         f.AddRange(blanks);
         return Make(c, "opening-parameters", f, $"Every door has {s.SwingParameter} and {s.TemperedParameter}. Every window has {s.TemperedParameter} and {s.EgressParameter}.");
+    }
+
+    /// <summary>The value a blank should get, when an office rule settles it. Null when it's the designer's call.</summary>
+    private static string? BlankFix(Ctx c, OpeningFact o, string parameter)
+    {
+        var s = c.Settings;
+        if (o.Category == "doors" && Same(parameter, s.SwingParameter))
+            return c.Facts.DoorGeometry.FirstOrDefault(g => g.ElementId == o.ElementId) is { } geometry
+                ? Finishing.DoorHanding.Derive(geometry, s)?.Value
+                : null;
+        if (o.Category == "doors" && Same(parameter, s.TemperedParameter)
+            && s.GlassDoorKeywords.Any(k => o.TypeKey.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            return "Yes";
+        return null;
+    }
+
+    /// <summary>
+    /// What prints on the door and window schedules matches the model: every placed door and window has
+    /// a row (no filter or phase dropping one), every door on the schedule has a room on at least one
+    /// side, and every tag prints the same mark as its schedule row.
+    /// </summary>
+    private static CheckResult ScheduleContents(Ctx c)
+    {
+        var schedules = c.Facts.Schedules.Where(s => s.Category is "doors" or "windows" && !s.IsKeySchedule && s.OnSheets.Count > 0).ToList();
+        if (schedules.Count == 0) return Skip("schedule-contents", "No door or window schedule is on a sheet (the schedules check says so).");
+        var f = new List<Finding>();
+        var types = c.Facts.OpeningTypes.ToDictionary(t => (t.Category, t.Key));
+
+        foreach (var s in schedules.OrderBy(s => s.Category).ThenBy(s => s.Name))
+        {
+            var openings = c.Facts.Openings.Where(o => o.Category == s.Category).ToList();
+            if (s.ElementIds is { } rows)
+            {
+                var listed = rows.ToHashSet();
+                var missing = openings.Where(o => !listed.Contains(o.ElementId)).OrderBy(o => o.Label).ToList();
+                foreach (var o in missing)
+                    f.Add(new(Severity.Fail, $"{o.Label} isn't on \"{s.Name}\". A filter or the schedule's phase leaves it out, so it's not counted or ordered.", o.ElementId));
+            }
+            else
+            {
+                f.Add(new(Severity.Warn, $"\"{s.Name}\": couldn't read which elements it lists, so missing rows weren't checked."));
+            }
+
+            // From/To Room on the door schedule: a door with neither prints two blanks and tells the builder nothing.
+            if (s.Category == "doors" && s.Fields.Any(x => !x.IsHidden && x.Name.StartsWith("From Room", StringComparison.OrdinalIgnoreCase)))
+            {
+                foreach (var o in openings.Where(o => o.FromRoomId is null && o.ToRoomId is null).OrderBy(o => o.Label))
+                    f.Add(new(Severity.Fail, $"{o.Label}: From Room and To Room are both blank on \"{s.Name}\". The rooms on either side aren't placed or don't reach the door; fix the room boundaries.", o.ElementId));
+            }
+        }
+
+        // Tags print the schedule's mark: Type Mark is what the row reads, so the tag must say the same.
+        var byId = c.Facts.Openings.ToDictionary(o => o.ElementId);
+        foreach (var tag in c.Facts.TagTexts.OrderBy(t => t.ViewName).ThenBy(t => t.ElementId))
+        {
+            if (!byId.TryGetValue(tag.ElementId, out var o)) continue;
+            if (!types.TryGetValue((o.Category, o.TypeKey), out var type) || string.IsNullOrWhiteSpace(type.TypeMark)) continue; // type-marks reports it
+            var printed = string.Join(" ", tag.Text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
+            if (Normalize(printed).Contains(Normalize(type.TypeMark!), StringComparison.Ordinal)) continue;
+            f.Add(new(Severity.Fail,
+                $"{o.Label}: its tag on {tag.ViewName} prints \"{(printed.Length == 0 ? "(nothing)" : printed)}\" but its schedule row is \"{type.TypeMark}\". The tag family reads another parameter, or the text was typed in.",
+                o.ElementId));
+        }
+
+        var counted = schedules.Sum(s => s.ElementIds?.Count ?? 0);
+        return Make(c, "schedule-contents", f, $"Every door and window is on its schedule ({counted} rows), every door has a room, and every tag prints its schedule mark.");
     }
 
     private static CheckResult Tags(Ctx c)

@@ -1,4 +1,4 @@
-namespace AllegroDrafter.Core.Checks;
+﻿namespace AllegroDrafter.Core.Checks;
 
 /// <summary>
 /// Everything the set audit needs, read from the model in one pass.
@@ -20,6 +20,7 @@ public sealed class SetFacts
     public List<AnnotationTypeUsage> AnnotationTypes { get; set; } = new();
     public List<TextFact> Texts { get; set; } = new();
     public List<PlanStringFact> PlanStrings { get; set; } = new();
+    public List<TagTextFact> TagTexts { get; set; } = new();
 
     /// <summary>Things the reader couldn't get, reported so a silent gap doesn't look like a pass.</summary>
     public List<string> ReadWarnings { get; set; } = new();
@@ -33,6 +34,9 @@ public sealed record SheetFact(string Number, string Name, int PlacedItemCount, 
 /// </summary>
 public sealed record PlanStringFact(string ViewName, string Side, double Lo, double Hi, int Segments, long ElementId);
 
+/// <summary>What a door or window tag prints, in a view placed on a sheet.</summary>
+public sealed record TagTextFact(long TagId, long ElementId, string Category, string ViewName, string Text);
+
 /// <summary>A view placed on at least one sheet.</summary>
 public sealed record ViewFact(string Name, string ViewType, int? ScaleDenominator, string? Template, IReadOnlyList<string> OnSheets);
 
@@ -45,7 +49,8 @@ public sealed record ScheduleFact(
     IReadOnlyList<ScheduleFieldFact> Fields,
     IReadOnlyList<string> SortGroupFields,
     IReadOnlyList<string> OnSheets,
-    bool FirstGroupCounts = false)
+    bool FirstGroupCounts = false,
+    IReadOnlyList<long>? ElementIds = null)
 {
     /// <summary>One line per element with a count under each group: the Count column isn't needed.</summary>
     public bool CountsInGroupFooters => IsItemized && FirstGroupCounts;
